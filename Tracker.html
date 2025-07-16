@@ -1,0 +1,2830 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prospecting Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --sidebar-width-open: 260px;
+            --sidebar-width-closed: 88px;
+        }
+        body { 
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* bg-slate-900 */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+        .main-content {
+            transition: margin-left 0.3s ease-in-out;
+        }
+        .sidebar-open .main-content {
+            margin-left: var(--sidebar-width-open);
+        }
+        .sidebar-closed .main-content {
+            margin-left: var(--sidebar-width-closed);
+        }
+        .prospect-list::-webkit-scrollbar, .news-feed::-webkit-scrollbar, .cadence-day-column::-webkit-scrollbar, .cadence-client-list::-webkit-scrollbar, .task-list-scroll::-webkit-scrollbar, #daily-prospects-list::-webkit-scrollbar, .proposal-column::-webkit-scrollbar { width: 8px; }
+        .prospect-list::-webkit-scrollbar-track, .news-feed::-webkit-scrollbar-track, .cadence-day-column::-webkit-scrollbar-track, .cadence-client-list::-webkit-scrollbar-track, .task-list-scroll::-webkit-scrollbar-track, #daily-prospects-list::-webkit-scrollbar-track, .proposal-column::-webkit-scrollbar-track { background: #1e293b; border-radius: 10px; }
+        .prospect-list::-webkit-scrollbar-thumb, .news-feed::-webkit-scrollbar-thumb, .cadence-day-column::-webkit-scrollbar-thumb, .cadence-client-list::-webkit-scrollbar-thumb, .task-list-scroll::-webkit-scrollbar-thumb, #daily-prospects-list::-webkit-scrollbar-thumb, .proposal-column::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        .prospect-list::-webkit-scrollbar-thumb:hover, .news-feed::-webkit-scrollbar-thumb:hover, .cadence-day-column::-webkit-scrollbar-thumb:hover, .cadence-client-list::-webkit-scrollbar-thumb:hover, .task-list-scroll::-webkit-scrollbar-thumb:hover, #daily-prospects-list::-webkit-scrollbar-thumb:hover, .proposal-column::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .loader {
+            border: 4px solid #334155; /* border-slate-700 */
+            border-top: 4px solid #38bdf8; /* border-sky-500 */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .notification {
+            position: fixed;
+            top: 1.25rem;
+            right: 1.25rem;
+            z-index: 1000;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .notification.success { background-color: #22c55e; }
+        .notification.error { background-color: #ef4444; }
+        .notification.warning { background-color: #f59e0b; }
+        .notification button { margin-left: 1rem; background: none; border: none; color: inherit; font-size: 1.2rem; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
+        .notification button:hover { opacity: 1; }
+        .card {
+            background-color: #1e293b; /* bg-slate-800 */
+            border: 1px solid #334155; /* border-slate-700 */
+        }
+        /* Custom styles for select dropdown */
+        select {
+            color: #cbd5e1; /* text-slate-300 */
+        }
+        /* Style for the placeholder option */
+        select:required:invalid {
+            color: #94a3b8; /* text-slate-400 */
+        }
+        option[value=""][disabled] {
+            display: none;
+        }
+        option {
+            background-color: #1e293b; /* bg-slate-800, for dropdown menu */
+            color: #cbd5e1; /* text-slate-300 */
+        }
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-backdrop.show {
+             opacity: 1;
+        }
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 60;
+            width: 90vw;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            opacity: 0;
+            transform: translate(-50%, -60%);
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .modal.show {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+        .text-shadow-drop {
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+        }
+        .tier-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            border-width: 1px;
+        }
+        .tier-1 { background-color: #f59e0b20; color: #f59e0b; border-color: #f59e0b80;} /* Amber */
+        .tier-2 { background-color: #e5e7eb20; color: #e5e7eb; border-color: #e5e7eb80;} /* Silver/Gray */
+        .tier-3 { background-color: #a1620720; color: #a16207; border-color: #a1620780;} /* Bronze/Yellow-Dark */
+        .dragging {
+            opacity: 0.5;
+            background: #334155;
+        }
+        .layout-option {
+            border: 2px solid #475569;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .layout-option:hover {
+            border-color: #64748b;
+        }
+        .layout-option.selected {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px #38bdf8;
+        }
+        .layout-block {
+            background-color: #475569;
+            border-radius: 0.25rem;
+        }
+        .daily-planner-table textarea {
+            min-height: 40px; /* Ensure textarea is tall enough */
+        }
+        .proposal-column {
+            min-height: 200px; /* Give empty columns a minimum height */
+        }
+        .nav-item[draggable="true"] {
+            cursor: grab;
+        }
+        .nav-item[draggable="true"].dragging {
+            cursor: grabbing;
+        }
+
+    </style>
+</head>
+<body class="text-slate-300">
+
+    <div id="auth-loader" class="flex flex-col items-center justify-center min-h-screen bg-slate-900">
+        <div class="loader" style="width: 4rem; height: 4rem; border-width: 5px;"></div>
+        <p class="text-lg text-slate-400 mt-4">Authenticating & Loading Application...</p>
+    </div>
+
+    <div id="app-container" style="display:none;">
+        <aside id="sidebar" class="fixed top-0 left-0 h-full bg-slate-800 border-r border-slate-700/60 flex flex-col transition-all duration-300 ease-in-out z-40">
+            <div id="logo-container" class="relative p-4 h-[124px] flex items-center justify-center border-b border-slate-700/60">
+                <div id="logo-wrapper" class="relative group cursor-pointer w-full" role="button" aria-label="Upload new logo">
+                    <img id="logo-image" src="https://placehold.co/228x90/1e293b/94a3b8?text=Your+Logo" alt="Company Logo" class="w-full max-h-24 object-contain transition-opacity duration-300 group-hover:opacity-75"/>
+                        <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md pointer-events-none">
+                            <i data-lucide="upload-cloud" class="text-white h-8 w-8"></i>
+                        </div>
+                </div>
+                 <input type="file" id="logo-upload-input" class="hidden" accept="image/*"/>
+            </div>
+            <nav id="sidebar-nav" class="flex-grow p-4 space-y-2" aria-label="Main Navigation">
+                </nav>
+            <div class="p-4 mt-auto border-t border-slate-700/60 space-y-2">
+                <input type="file" id="background-upload-input" class="hidden" accept="image/*">
+                <button id="background-upload-btn" class="w-full bg-slate-700 text-slate-300 font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-600 transition-colors duration-200 flex items-center justify-center shadow-sm">
+                    <i data-lucide="image" class="h-5 w-5"></i>
+                    <span class="nav-text ml-2 whitespace-nowrap">Change Background</span>
+                </button>
+                 <button id="sidebar-toggle" aria-controls="sidebar" aria-expanded="true" class="w-full text-slate-300 font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-700 transition-colors duration-200 flex items-center justify-center shadow-sm text-sky-400 bg-sky-500/10 hover:bg-sky-500/20">
+                     <i data-lucide="chevrons-left" class="h-5 w-5"></i>
+                     <span class="nav-text ml-2 whitespace-nowrap">Collapse</span>
+                 </button>
+            </div>
+        </aside>
+
+        <main id="main-content" class="main-content p-4 sm:p-6 lg:p-8">
+             </main>
+    </div>
+
+    <div id="modal-container"></div>
+    <div id="notification-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script>
+        const __firebase_config = {
+            apiKey: "AIzaSyD8jTfrLMec-UNf-dAndi0mOx0Yh-KeTjw",
+            authDomain: "prospector-2-b9588.firebaseapp.com",
+            projectId: "prospector-2-b9588",
+            storageBucket: "prospector-2-b9588.appspot.com",
+            messagingSenderId: "229973385000",
+            appId: "1:229973385000:web:33697fb0c5b472b7197a1d",
+            measurementId: "G-BV5C58NSC5"
+        };
+        const __app_id = 'prospector-2-b9588';
+    </script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, writeBatch, getDocs, query, updateDoc, addDoc, deleteDoc, arrayUnion, arrayRemove, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+        
+        // --- Globals & Constants ---
+        let DOMElements = {};
+        const DEFAULT_NAV_ITEMS = [
+            { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
+            { id: 'prospectingEngine', icon: 'search', label: 'Prospecting Engine' },
+            { id: 'followUps', icon: 'mail-plus', label: 'Follow-ups' },
+            { id: 'dailyPlanner', icon: 'calendar-clock', label: 'Daily Planner' },
+            { id: 'proposalTracker', icon: 'file-text', label: 'Proposal Tracker' },
+            { id: 'fieldLog', icon: 'scan-line', label: 'Field Log' },
+            { id: 'newsIntelligence', icon: 'newspaper', label: 'Business Intelligence' },
+            { id: 'taskList', icon: 'check-square', label: 'Task List' },
+            { id: 'radioWorkflow', icon: 'radio-tower', label: 'Radio Workflow', url: 'https://www.radioworkflow.com/app/index.php?grid=inbox_clients', isExternal: true }
+        ];
+
+        let state = {
+            db: null, auth: null, userId: null, isAuthReady: false, appId: null,
+            isLoading: false, prospects: [], industries: [],
+            lastSearchedIndustries: localStorage.getItem('lastSearchedIndustries') || "",
+            selectedProspects: [], reminders: [], newsItems: [], dailyProspects: [], proposals: [], fieldLog: [],
+            isSidebarOpen: true, currentView: 'dashboard',
+            navItems: [...DEFAULT_NAV_ITEMS],
+            dashboardLayout: {
+                visible: ['prospectingEngine', 'followUps', 'taskList', 'newsIntelligence'],
+                order: ['prospectingEngine', 'followUps', 'taskList', 'newsIntelligence'],
+                layoutType: 'grid' // 'grid', 'vertical', 'feature', 'feature-left', 'feature-right', 'feature-bottom'
+            },
+            focusedElementBeforeModal: null,
+            timeIntervalId: null,
+        };
+
+        const DEFAULT_INDUSTRIES_LIST = ["Art Galleries", "ATV Dealerships", "Automobile Dealerships (New & Used)", "Bakeries", "Bicycle Shops", "Bookstores", "Breweries & Taprooms", "Building Material Suppliers", "Cannabis Dispensaries", "Cell Phone & Accessory Stores", "Clothing Boutiques", "Convenience Stores", "Craft & Hobby Stores", "Farm & Feed Supply Stores", "Florists", "Furniture Stores", "Gas Stations", "Gift Shops", "Grocery Stores", "Hardware Stores", "Health Food Stores", "Jewelry Stores (especially turquoise and silver)", "Liquor Stores", "Native American Crafts & Jewelry Shops", "Office Supply Stores", "Pet Stores", "Pharmacies", "RV Dealerships", "Shoe Stores", "Sporting Goods Stores", "Thrift Stores", "Tire Shops", "Western Wear Outfitters", "Bed & Breakfasts", "Cafes & Coffee Shops", "Catering Companies", "Food Trucks", "Hotels & Motels", "Ice Cream & Yogurt Shops", "Nightclubs & Bars", "Restaurants", "RV Parks & Campgrounds", "Vacation Rental Management", "Acupuncturists", "Assisted Living Facilities", "Chiropractors", "Dentists & Orthodontists", "Hearing Aid Centers", "Home Healthcare Services", "Hospitals & Clinics", "Massage Therapists", "Medical & Diagnostic Laboratories", "Mental Health Counselors", "Optometrists", "Physical Therapy Centers", "Urgent Care Centers", "Veterinarians", "Art Instruction & Schools", "Bowling Alleys", "Dance Studios", "Event Venues", "Film & Television Production Companies", "Fitness Centers & Gyms", "Golf Courses", "Hot Air Balloon Ride Operators", "Hunting & Fishing Guides", "Martial Arts Schools", "Movie Theaters", "Museums", "Music Venues", "Performing Arts Theaters", "Tour Companies (e.g., historical, outdoor adventure)", "Yoga Studios", "Accounting & CPA Firms", "Advertising & Marketing Agencies", "Architectural Firms", "Business Consulting Services", "Engineering Firms", "Environmental Consulting", "Graphic Design Services", "IT Support & Services", "Law Firms", "Photography & Videography Services", "Real Estate Agencies", "Scientific Research & Development Services", "Surveying & Mapping Services", "Web Design & Development", "Auto Repair Shops", "Carpenters", "Concrete Contractors", "Electricians", "Fencing Contractors", "General Contractors", "HVAC (Heating, Ventilation, & Air Conditioning) Services", "Landscaping & Lawn Care Services", "Locksmiths", "Painters", "Pest Control Services", "Plumbers", "Roofing Contractors", "Solar Panel Installation Companies", "Welding Services", "Well Drilling Services", "Banks & Credit Unions", "Bail Bonds Services", "Financial Planning Services", "Insurance Agencies", "Mortgage Brokers", "Payday Loan & Title Loan Companies", "Tax Preparation Services", "Aerospace & Defense Component Manufacturing", "Chile & Spice Production", "Craft Distilleries", "Food & Beverage Manufacturing", "Furniture Makers", "Metal Fabrication Shops", "Pottery & Ceramics Producers", "Wineries", "Animal Groomers", "Auto Detailing Services", "Car Washes", "Cell Phone Repair Shops", "Child Day Care Services", "Cleaning Services (Commercial & Residential)", "Dry Cleaners & Laundromats", "Funeral Homes & Cemeteries", "Hair Salons & Barbershops", "Kennels & Pet Boarding", "Moving & Storage Companies", "Nail Salons", "Property Management Companies", "Security Services", "Septic Tank & System Services", "Tailors & Alteration Services", "Tattoo & Piercing Parlors", "Towing Services", "Tree Trimming & Removal Services", "Tutoring & Educational Services", "Wedding Planning Services", "Window Cleaning Services", "Cattle Ranches", "Chile Farms", "Dairy Farms", "Hay & Alfalfa Farming", "Nurseries & Garden Centers", "Pecan Orchards", "Pistachio Farms", "Oil & Gas Extraction Companies", "Potash Mining", "Sand & Gravel Quarries"];
+        const DASHBOARD_COMPONENTS = {
+            prospectingEngine: { title: 'Prospecting Engine', getter: getProspectingEngineHTML },
+            followUps: { title: 'Follow-up Generator', getter: getFollowUpsHTML },
+            taskList: { title: 'Task List', getter: getTaskListHTML },
+            newsIntelligence: { title: 'Business Intelligence', getter: getNewsIntelligenceHTML }
+        };
+        
+        // --- All Functions Defined First ---
+
+        function getEl(id) { return document.getElementById(id); }
+        
+        function showNotification(message, type = 'warning', duration = 3000) {
+            const notifId = `notif-${Date.now()}`;
+            const notifDiv = document.createElement('div');
+            notifDiv.id = notifId;
+            notifDiv.className = `notification ${type}`;
+            notifDiv.innerHTML = `<p>${message}</p><button aria-label="Close notification">&times;</button>`;
+            DOMElements.notificationContainer.appendChild(notifDiv);
+            setTimeout(() => notifDiv.classList.add('show'), 10);
+            const close = () => {
+                notifDiv.classList.remove('show');
+                setTimeout(() => notifDiv.remove(), 300);
+            };
+            notifDiv.querySelector('button').onclick = close;
+            setTimeout(close, duration);
+        }
+        
+        function copyToClipboard(text) {
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            showNotification('Copied to clipboard!', 'success');
+        }
+        
+        function setLoadingState(element, isLoading) {
+            if (!element) return;
+            if (isLoading) {
+                element.dataset.originalContent = element.innerHTML;
+                element.innerHTML = `<div class="loader" style="width: 20px; height: 20px; border-width: 2px;"></div>`;
+                element.disabled = true;
+            } else {
+                if (element.dataset.originalContent) element.innerHTML = element.dataset.originalContent;
+                element.disabled = false;
+                lucide.createIcons();
+            }
+        }
+        
+        function openModal(title, bodyHTML, actionsHTML = '', modalId = `modal-${Date.now()}`) {
+            state.focusedElementBeforeModal = document.activeElement;
+            const modalWrapper = document.createElement('div');
+            modalWrapper.id = modalId;
+            modalWrapper.innerHTML = `
+                <div class="modal-backdrop"></div>
+                <div class="modal card !bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="${modalId}-title">
+                    <div class="flex justify-between items-center p-4 border-b border-slate-700">
+                        <h2 id="${modalId}-title" class="text-xl font-bold text-white">${title}</h2>
+                        <button class="close-modal-btn text-slate-400 hover:text-white p-1 rounded-full" aria-label="Close dialog"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    </div>
+                    <div class="p-6 modal-body">${bodyHTML}</div>
+                    ${actionsHTML ? `<div class="flex flex-wrap justify-end gap-3 p-4 border-t border-slate-700 bg-slate-800/50 modal-actions">${actionsHTML}</div>` : ''}
+                </div>
+            `;
+            DOMElements.modalContainer.appendChild(modalWrapper);
+            
+            const modal = modalWrapper.querySelector('.modal');
+            const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+
+
+            setTimeout(() => {
+                modalWrapper.querySelector('.modal-backdrop').classList.add('show');
+                modal.classList.add('show');
+                if (firstElement) {
+                    firstElement.focus();
+                }
+                lucide.createIcons();
+            }, 10);
+            
+            const close = () => closeModal(modalId);
+            modalWrapper.querySelectorAll('.close-modal-btn').forEach(btn => btn.onclick = close);
+            modalWrapper.querySelector('.modal-backdrop').onclick = close;
+
+            modal.addEventListener('keydown', (e) => {
+                if (e.key !== 'Tab') return;
+                if (e.shiftKey) { 
+                    if (document.activeElement === firstElement) {
+                        lastElement.focus();
+                        e.preventDefault();
+                    }
+                } else {
+                    if (document.activeElement === lastElement) {
+                        firstElement.focus();
+                        e.preventDefault();
+                    }
+                }
+            });
+
+            return modalId;
+        }
+
+        function closeModal(modalId) {
+            const modalWrapper = getEl(modalId);
+            if (modalWrapper) {
+                modalWrapper.querySelector('.modal-backdrop').classList.remove('show');
+                modalWrapper.querySelector('.modal').classList.remove('show');
+                setTimeout(() => modalWrapper.remove(), 300);
+            }
+             if (state.focusedElementBeforeModal) {
+                state.focusedElementBeforeModal.focus();
+            }
+        }
+
+        function renderProgressBar(progressEl, inputEl, target) {
+            if(!progressEl || !inputEl) return;
+            const value = Number(inputEl.value) || 0;
+            const percentage = Math.min((value / target) * 100, 100);
+            let colorClass = 'bg-red-500';
+            if (percentage >= 100) colorClass = 'bg-green-500';
+            else if (percentage >= 50) colorClass = 'bg-yellow-500';
+            
+            progressEl.style.width = `${percentage}%`;
+            progressEl.className = `h-2 rounded-full transition-all duration-500 ${colorClass}`;
+        }
+        
+        async function generateContent(payload) {
+            const apiKey = "AIzaSyAYuyEPWY806m5KjA8Eeaq99J4RRd2HpCw"; 
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    let errorData = { message: `API error: ${response.status} ${response.statusText}` };
+                    try {
+                        const errorJson = await response.json();
+                        errorData = errorJson.error || errorData;
+                    } catch (e) {
+                        // Ignore if error response is not JSON
+                    }
+                    // Throw a specific error to be caught by the catch block
+                    throw new Error(errorData.message);
+                }
+                
+                const result = await response.json();
+
+                if (result.promptFeedback && result.promptFeedback.blockReason) {
+                    const blockMessage = `Content blocked by API. Reason: ${result.promptFeedback.blockReason}. This can happen due to safety filters.`;
+                    console.error(blockMessage, result.promptFeedback);
+                    throw new Error(blockMessage);
+                }
+
+                if (!result.candidates || result.candidates.length === 0) {
+                    throw new Error("API returned no candidates. This could be due to safety settings or an invalid request.");
+                }
+                if (result.candidates[0]?.content?.parts?.[0]?.text) {
+                    return result.candidates[0].content.parts[0].text;
+                }
+                throw new Error("No valid content in API response structure.");
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                let friendlyMessage = `An error occurred: ${error.message}.`;
+                if (error.message.includes("API key not valid") || error.message.includes("allow unregistered callers")) {
+                    friendlyMessage = "API call failed due to an authentication error. Please check your API Key configuration.";
+                } else if (error.message.includes("quota")) {
+                    friendlyMessage = "API call failed: You may have exceeded your usage quota.";
+                }
+                showNotification(friendlyMessage, 'error', 8000);
+                return null;
+            }
+        }
+
+        // --- Prospecting Engine Functions Start ---
+
+        function getProspectingEngineHTML(isFullView = false) {
+            const listHeightClass = isFullView ? 'max-h-[40rem]' : 'max-h-64';
+            return `
+                <div class="space-y-8">
+                    <div>
+                        <h2 id="engine-heading" class="text-2xl font-semibold text-white mb-6 text-center">Daily Prospecting Engine</h2>
+                        <div class="space-y-3 mb-4">
+                            <div>
+                                <label for="industry-input" class="sr-only">Industries</label>
+                                <input type="text" id="industry-input" placeholder="Up to 5 industries, comma-separated" class="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-400 focus:border-sky-400 outline-none transition" value="${state.lastSearchedIndustries || ''}"/>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <button id="get-ideas-btn" class="bg-amber-500 text-slate-900 font-semibold py-2.5 px-4 rounded-lg hover:bg-amber-400 transition-colors duration-200 flex items-center justify-center shadow-sm"><i data-lucide="lightbulb" class="mr-2 h-5 w-5"></i>Get Ideas</button>
+                                <button id="find-prospects-btn" class="bg-sky-500 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-sky-600 transition-colors duration-200 disabled:bg-slate-500 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"><i data-lucide="search" class="mr-2 h-5 w-5"></i>Find Prospects</button>
+                            </div>
+                            <div class="mt-3">
+                                <button id="clear-prospects-btn" class="w-full bg-transparent border border-red-500/50 text-red-400/80 font-semibold py-2.5 px-4 rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-colors duration-200 flex items-center justify-center shadow-sm"><i data-lucide="trash-2" class="mr-2 h-5 w-5"></i>Clear All Prospects</button>
+                            </div>
+                        </div>
+                        <div id="ideas-container" class="mt-4"></div>
+                        <div id="prospect-progress-container" class="hidden my-4 p-3 bg-slate-700/50 rounded-lg border border-slate-600"></div>
+                        <div id="prospect-list" class="space-y-2 flex-grow overflow-y-auto pr-2 -mr-2 ${listHeightClass} prospect-list"></div>
+                    </div>
+                    ${isFullView ? `<div class="border-t border-slate-700/60 pt-8">
+                        <h2 class="text-2xl font-semibold text-white mb-6 text-center">Manage Industries</h2>
+                        <div class="flex gap-2 mb-4">
+                            <input type="text" id="add-industry-input" placeholder="Add a new industry" class="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-400 focus:border-sky-400 outline-none transition" />
+                            <button id="add-industry-btn" class="bg-green-600 text-white font-semibold p-3 rounded-lg hover:bg-green-500 transition-colors duration-200 flex items-center justify-center shadow-sm"><i data-lucide="plus"></i></button>
+                        </div>
+                        <div id="manage-industries-list" class="space-y-2 max-h-60 overflow-y-auto pr-2 -mr-2 prospect-list">
+                            </div>
+                    </div>` : ''}
+                </div>
+            `;
+        }
+
+        function renderProspects() {
+            const prospectList = getEl('prospect-list');
+            if(!prospectList) return;
+            prospectList.innerHTML = '';
+            
+            const progressContainer = getEl('prospect-progress-container');
+            if (state.prospects.length === 0) {
+                if(progressContainer) progressContainer.classList.add('hidden');
+                prospectList.innerHTML = `<div class="text-center text-slate-400 p-8">No prospects found. Use the engine above to find some!</div>`;
+                return;
+            }
+
+            const outreachCount = state.prospects.filter(p => p.isCompleted).length;
+            if(progressContainer) {
+                progressContainer.innerHTML = `<h3 class="font-semibold text-white">Outreach Progress: ${outreachCount} / ${state.prospects.length}</h3>
+                <div class="w-full bg-slate-600 rounded-full h-2.5 mt-1"><div class="bg-sky-500 h-2.5 rounded-full" style="width: ${state.prospects.length > 0 ? (outreachCount / state.prospects.length) * 100 : 0}%"></div></div>
+                ${outreachCount >= 20 ? `<div class="text-green-400 font-bold mt-2 flex items-center"><i data-lucide="check-circle-2" class="mr-2"></i> Daily Prospecting Complete!</div>` : ''}`;
+                progressContainer.classList.remove('hidden');
+            }
+
+            state.prospects.forEach(prospect => {
+                const isSelected = state.selectedProspects.some(p => p.id === prospect.id);
+                const prospectDiv = document.createElement('div');
+                prospectDiv.dataset.id = prospect.id;
+                prospectDiv.className = `p-3 border rounded-lg flex justify-between items-center transition-all cursor-pointer ${prospect.isCompleted ? 'bg-green-500/10 border-green-500/20 opacity-60' : isSelected ? 'bg-sky-500/20 border-sky-500 ring-2 ring-sky-500' : 'bg-slate-700/50 hover:bg-slate-700 border-slate-600'}`;
+                
+                let tierBadge = '';
+                if (prospect.opportunityTier) {
+                    const tierNum = prospect.opportunityTier.match(/\d+/)?.[0] || 0;
+                    tierBadge = `<span class="tier-badge tier-${tierNum}">${prospect.opportunityTier}</span>`
+                }
+
+                prospectDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <p class="font-semibold text-white">${prospect.businessName}</p>
+                        ${tierBadge}
+                    </div>
+                    <div class="flex items-center gap-1">${prospect.isCompleted ? `<i data-lucide="check-circle-2" class="text-green-400"></i>` : `<button data-action="refresh" title="Refresh ${prospect.businessName}" aria-label="Refresh ${prospect.businessName}" class="p-1 hover:bg-slate-600 rounded-full"><i data-lucide="refresh-cw" class="h-4 w-4 text-slate-400 pointer-events-none"></i></button><button data-action="details" title="Details for ${prospect.businessName}" aria-label="Details for ${prospect.businessName}" class="p-1 hover:bg-slate-600 rounded-full"><i data-lucide="info" class="h-4 w-4 text-slate-400 pointer-events-none"></i></button>`}</div>`;
+                prospectList.appendChild(prospectDiv);
+            });
+            lucide.createIcons();
+        }
+
+        async function findProspects() {
+            const findBtn = getEl('find-prospects-btn');
+            if(!findBtn) return;
+            
+            setLoadingState(findBtn, true);
+            try {
+                const ideasContainer = getEl('ideas-container');
+                if (ideasContainer) ideasContainer.innerHTML = '';
+
+                const industryInput = getEl('industry-input');
+                const industries = industryInput.value.split(',').map(i => i.trim()).filter(i => i);
+
+                if (industries.length === 0) {
+                    showNotification("Please enter at least one industry.", 'warning');
+                    return;
+                }
+                if (industries.length > 5) {
+                    showNotification("Please enter no more than 5 industries.", 'warning');
+                    return;
+                }
+                
+                state.selectedProspects = [];
+                state.lastSearchedIndustries = industryInput.value;
+                localStorage.setItem('lastSearchedIndustries', industryInput.value);
+                
+                const prospectsPerIndustry = Math.floor(20 / industries.length);
+                const prompt = `**ABSOLUTELY NO PLACEHOLDERS.** You must generate real, verifiable, locally-owned businesses. Do not use generic names like "Business A", "Restaurant 1", or "Mental Health Counselor D". If you cannot find enough real businesses to meet the requested number, return fewer results. It is more important that the businesses are real than that you meet the count.
+
+                As an expert sales development representative for Hutton Broadcasting, find ${prospectsPerIndustry} real, locally-owned businesses for each of these industries in New Mexico: "${industries.join(', ')}".
+
+                For each business, provide:
+                - A real business name.
+                - Their website, if available.
+                - A decision maker's name and title (e.g., "Jane Doe, Owner"). If a name isn't public, use a title like "Owner" or "Manager".
+                - A valid local phone number (505 or 575 area code). The main business line is acceptable.
+                - A plausible email address (e.g., 'info@company.com').
+                - An 'opportunityTier' ("Tier 1", "Tier 2", or "Tier 3") and a 'tierReason' (2-3 sentences) explaining their marketing weaknesses (e.g., poor SEO, no social media) and why they are a good prospect for advertising.`;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: { type: "OBJECT", properties: { prospects: { type: "ARRAY", items: { type: "OBJECT", properties: { businessName: { type: "STRING" }, website: { type: "STRING" }, opportunityTier: { type: "STRING" }, tierReason: { type: "STRING" }, decisionMaker: { type: "OBJECT", properties: { name: { type: "STRING" }, title: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" } }, required: ["name", "title", "email", "phone"] } }, required: ["businessName", "website", "opportunityTier", "tierReason", "decisionMaker"] } } } }
+                    }
+                };
+                const jsonText = await generateContent(payload);
+                
+                if (jsonText) {
+                    const cleanedJsonText = jsonText.replace(/```json\n?/, '').replace(/```$/, '').trim();
+                    const parsed = JSON.parse(cleanedJsonText);
+                    
+                    if (!parsed.prospects || parsed.prospects.length === 0) {
+                        showNotification('Your query returned 0 prospects. Please try different industries.', 'warning');
+                    } else {
+                        const prospectsCollRef = getCollRef('prospects');
+                        const qSnapshot = await getDocs(query(prospectsCollRef));
+                        const deleteBatch = writeBatch(state.db);
+                        qSnapshot.forEach(doc => deleteBatch.delete(doc.ref));
+                        await deleteBatch.commit();
+
+                        const addBatch = writeBatch(state.db);
+                        parsed.prospects.forEach(p => {
+                            const newDocRef = doc(prospectsCollRef);
+                            addBatch.set(newDocRef, { ...p, isCompleted: false });
+                        });
+                        await addBatch.commit();
+                        showNotification(`Found ${parsed.prospects.length} new prospects.`, 'success');
+                    }
+                } 
+                // If jsonText is null, generateContent has already shown an error.
+            } catch (e) {
+                console.error("Error in findProspects logic:", e);
+                showNotification(`An unexpected error occurred: ${e.message}`, 'error');
+            } finally {
+                setLoadingState(findBtn, false);
+            }
+        }
+
+        async function handleRefreshProspect(prospectIdToReplace, refreshButton) {
+            setLoadingState(refreshButton, true);
+            try {
+                const industryInput = getEl('industry-input');
+                const industries = industryInput.value.split(',').map(i => i.trim()).filter(i => i);
+
+                if (industries.length === 0) {
+                    showNotification('Please specify industries in the search box to get a replacement.', 'warning');
+                    return;
+                }
+
+                const existingNames = state.prospects.map(p => p.businessName).join(', ');
+                const prompt = `**ABSOLUTELY NO PLACEHOLDERS.** Generate one new, real, locally-owned business prospect. Do not use generic names like "Business A" or "Law Firm 1". The business must be real and verifiable.
+
+                Guidelines:
+                - **Industry:** Must be from one of these: "${industries.join(', ')}".
+                - **Location:** Must be in New Mexico.
+                - **Uniqueness:** Must NOT be one of these existing businesses: ${existingNames}.
+                - **Contact Info:** Provide a valid NM phone number and a generic company email if a direct one is not found.
+                - **Analysis:** Provide an 'opportunityTier' and 'tierReason'.`;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: { type: "OBJECT", properties: { businessName: { type: "STRING" }, website: { type: "STRING" }, opportunityTier: { type: "STRING" }, tierReason: { type: "STRING" }, decisionMaker: { type: "OBJECT", properties: { name: { type: "STRING" }, title: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" } }, required: ["name", "title", "email", "phone"] } }, required: ["businessName", "website", "opportunityTier", "tierReason", "decisionMaker"] }
+                    }
+                };
+
+                const jsonText = await generateContent(payload);
+
+                if (jsonText) {
+                    const cleanedJsonText = jsonText.replace(/```json\n?/, '').replace(/```$/, '').trim();
+                    const newProspect = JSON.parse(cleanedJsonText);
+                    const docRef = getDocRef('prospects', prospectIdToReplace);
+                    await updateDoc(docRef, { ...newProspect, isCompleted: false });
+                    showNotification(`Swapped for ${newProspect.businessName}!`, 'success');
+                }
+                 // If jsonText is null, generateContent has already shown an error.
+            } catch (e) {
+                console.error("Error refreshing prospect:", e);
+                showNotification(`Error processing replacement: ${e.message}.`, 'error', 6000);
+            } finally {
+                setLoadingState(refreshButton, false);
+            }
+        }
+        
+        async function handleFindSimilar(prospect) {
+            closeModal(prospect.modalId);
+            showNotification(`Finding prospects similar to ${prospect.businessName}...`, 'warning', 2000);
+
+            const findBtn = getEl('find-prospects-btn');
+            if (findBtn) setLoadingState(findBtn, true);
+
+            try {
+                const prompt = `**ABSOLUTELY NO PLACEHOLDERS.** Find one new, real, locally-owned business that is similar to "${prospect.businessName}". Do not use generic names.
+
+                Guidelines:
+                - **Location:** The new business must be in New Mexico.
+                - **Similarity:** It should be in the same industry and have similar potential marketing weaknesses as the original's reason: "${prospect.tierReason}".
+                - **Contact Info:** Provide a valid NM phone number and a plausible company email.
+                - **Uniqueness:** Do not return the original business, "${prospect.businessName}".
+
+                Generate a full JSON profile for this new business.`;
+
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: { type: "OBJECT", properties: { businessName: { type: "STRING" }, website: { type: "STRING" }, opportunityTier: { type: "STRING" }, tierReason: { type: "STRING" }, decisionMaker: { type: "OBJECT", properties: { name: { type: "STRING" }, title: { type: "STRING" }, email: { type: "STRING" }, phone: { type: "STRING" } }, required: ["name", "title", "email", "phone"] } }, required: ["businessName", "website", "opportunityTier", "tierReason", "decisionMaker"] }
+                    }
+                };
+
+                const jsonText = await generateContent(payload);
+                if (jsonText) {
+                    const cleanedJsonText = jsonText.replace(/```json\n?/, '').replace(/```$/, '').trim();
+                    const newProspect = JSON.parse(cleanedJsonText);
+                    const docRef = getDocRef('prospects', prospect.id); // Get ref to the prospect we're replacing
+                    await updateDoc(docRef, { ...newProspect, isCompleted: false });
+                    showNotification(`Replaced with ${newProspect.businessName}!`, 'success');
+                }
+            } catch (e) {
+                console.error("Error finding similar prospect:", e);
+                showNotification('Failed to add similar prospect.', 'error');
+            } finally {
+                if (findBtn) setLoadingState(findBtn, false);
+            }
+        }
+        
+        async function handleToggleProspectCompletion(prospect) {
+            const docRef = getDocRef('prospects', prospect.id);
+            if (!docRef) return;
+        
+            try {
+                await updateDoc(docRef, { isCompleted: !prospect.isCompleted });
+                showNotification(`${prospect.businessName} status updated!`, 'success');
+                // The modal will be re-rendered by the main handler, which will update the button state
+                return true; 
+            } catch (error) {
+                console.error("Error updating prospect status:", error);
+                showNotification('Error updating status.', 'error');
+                return false;
+            }
+        }
+        
+        async function handleProspectClick(e) {
+            const prospectEl = e.target.closest('[data-id]');
+            if (!prospectEl) return;
+            const prospectId = prospectEl.dataset.id;
+            let prospect = state.prospects.find(p => p.id === prospectId);
+            if (!prospect) return;
+
+            const button = e.target.closest('button');
+            const action = button?.dataset.action;
+
+            if (action === 'details') {
+                const modalId = openModal(prospect.businessName, `<div class="p-8 text-center"><div class="loader inline-block"></div></div>`, '<div></div>');
+                
+                prospect.modalId = modalId;
+
+                let websiteHTML = '';
+                if (prospect.website && (prospect.website.startsWith('http') || prospect.website.startsWith('www'))) {
+                    const url = prospect.website.startsWith('www') ? `http://${prospect.website}` : prospect.website;
+                    websiteHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-sky-400 hover:underline">
+                        <i data-lucide="globe" class="h-4 w-4"></i>
+                        <span>${prospect.website}</span>
+                    </a>`;
+                } else {
+                    websiteHTML = `<p class="flex items-center gap-2 text-slate-500">
+                        <i data-lucide="globe" class="h-4 w-4"></i>
+                        <span>No website found</span>
+                    </p>`;
+                }
+                
+                const bodyHTML = `
+                    <div class="space-y-4 text-slate-300">
+                        ${websiteHTML}
+                        <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                            <h3 class="flex items-center gap-2 font-semibold text-white mb-2">
+                                <i data-lucide="brain-circuit" class="h-5 w-5 text-sky-400"></i>
+                                <span>Opportunity Analysis</span>
+                            </h3>
+                            <p class="text-sm leading-relaxed">${prospect.tierReason}</p>
+                        </div>
+                        <div class="border-t border-slate-700 pt-4">
+                            <h3 class="font-semibold text-white mb-3">Key Decision Maker:</h3>
+                            <div class="space-y-2">
+                                <p class="flex items-center gap-3"><i data-lucide="user" class="h-4 w-4 text-slate-400"></i><span>${prospect.decisionMaker.name}, ${prospect.decisionMaker.title}</span></p>
+                                <p class="flex items-center gap-3"><i data-lucide="mail" class="h-4 w-4 text-slate-400"></i><span>${prospect.decisionMaker.email}</span></p>
+                                <p class="flex items-center gap-3"><i data-lucide="phone" class="h-4 w-4 text-slate-400"></i><span>${prospect.decisionMaker.phone}</span></p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const actionsHTML = `
+                    <button data-prospect-id="${prospect.id}" class="add-to-daily-planner-btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition flex items-center justify-center shadow-md"><i data-lucide="plus" class="h-4 w-4 mr-2"></i>+ Daily Prospect</button>
+                    <button data-prospect-id="${prospectId}" class="generate-email-btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center shadow-md"><i data-lucide="mail" class="h-4 w-4 mr-2"></i>Generate Email</button>
+                    <button data-prospect-id="${prospectId}" class="generate-phone-btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition flex items-center justify-center shadow-md"><i data-lucide="phone" class="h-4 w-4 mr-2"></i>Generate Phone Script</button>
+                    <button data-prospect-id="${prospectId}" class="find-similar-btn bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition flex items-center justify-center shadow-md"><i data-lucide="copy-plus" class="h-4 w-4 mr-2"></i>Find Similar</button>
+                    <button class="close-modal-btn bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-500 transition">Close</button>
+                `;
+
+                const modalBody = document.querySelector(`#${modalId} .modal-body`);
+                const modalActions = document.querySelector(`#${modalId} .modal-actions`);
+                if (modalBody) modalBody.innerHTML = bodyHTML;
+                if (modalActions) modalActions.innerHTML = actionsHTML;
+                
+                lucide.createIcons();
+                
+                document.querySelector(`#${modalId} .generate-email-btn`).onclick = () => handleGenerateScriptFromProspect(prospect, 'email');
+                document.querySelector(`#${modalId} .generate-phone-btn`).onclick = () => handleGenerateScriptFromProspect(prospect, 'phone');
+                document.querySelector(`#${modalId} .find-similar-btn`).onclick = () => handleFindSimilar(prospect);
+                document.querySelector(`#${modalId} .add-to-daily-planner-btn`).onclick = () => handleAddProspectToDailyPlanner(prospect);
+                
+            } else if (action === 'refresh') {
+                handleRefreshProspect(prospectId, button);
+            } else {
+                const index = state.selectedProspects.findIndex(p => p.id === prospectId);
+                if (index > -1) {
+                    state.selectedProspects.splice(index, 1);
+                } else {
+                    state.selectedProspects.push(prospect);
+                }
+                renderProspects();
+            }
+        }
+        
+        async function handleGenerateScriptFromProspect(prospect, type) {
+            showNotification(`Generating ${type} script...`, 'warning');
+            let prompt;
+
+            if (type === 'email') {
+                prompt = `You are a sales rep named AJ from Hutton Broadcasting. Generate a compelling, short introductory email to ${prospect.decisionMaker.name} at ${prospect.businessName}. The subject line should be engaging and professional. The body of the email must reference the specific reason they are a good prospect, which is: '${prospect.tierReason}'. Keep it concise and end with a call to action to book a brief meeting. Format the response with three parts separated by '---': 'SUBJECT: [Subject here]', 'BODY: [Body here]', and 'RATIONALE: [Explanation here]'.`;
+            } else { // phone
+                prompt = `You are a sales rep named AJ from Hutton Broadcasting. Generate a short, professional introductory phone call script for a call to ${prospect.decisionMaker.name} at ${prospect.businessName}. The script must smoothly incorporate the reason they are a good prospect: '${prospect.tierReason}'. The script should be concise, under 100 words, and end with a question to book a brief discovery call. Do not include a rationale section.`;
+            }
+
+            const content = await generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+
+            if(content) {
+                if (type === 'email') {
+                    openEmailModal(content);
+                } else {
+                    openScriptModal(content);
+                }
+            }
+        }
+        
+        function handleGetIdeas() {
+            const sourceList = (state.industries && state.industries.length > 0) 
+                ? state.industries 
+                : DEFAULT_INDUSTRIES_LIST;
+
+            const shuffled = [...sourceList].sort(() => 0.5 - Math.random());
+            const selectedIndustries = shuffled.slice(0, 10);
+
+            const ideasContainer = getEl('ideas-container');
+            if (!ideasContainer) return;
+
+            const ideasHTML = `
+                <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-md font-semibold text-white">Prospecting Ideas</h4>
+                        <button id="close-ideas-btn" class="text-slate-500 hover:text-white"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    </div>
+                    <p class="text-slate-400 mb-4 text-sm">Click up to 5 industries to add them to your search.</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${selectedIndustries.map(industry => `
+                            <button class="industry-idea-btn bg-slate-700 text-slate-200 text-sm font-semibold py-1.5 px-3 rounded-full hover:bg-amber-500 hover:text-slate-900 transition-colors duration-200">
+                                ${industry}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            ideasContainer.innerHTML = ideasHTML;
+            lucide.createIcons();
+
+            const industryInput = getEl('industry-input');
+            
+            ideasContainer.querySelectorAll('.industry-idea-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const industry = btn.textContent.trim();
+                    let currentIndustries = industryInput.value.split(',').map(i => i.trim()).filter(i => i);
+                    const industryIndex = currentIndustries.indexOf(industry);
+
+                    if (industryIndex > -1) {
+                        currentIndustries.splice(industryIndex, 1);
+                        btn.classList.remove('bg-amber-500', 'text-slate-900');
+                        btn.classList.add('bg-slate-700', 'text-slate-200');
+                    } else {
+                        if (currentIndustries.length >= 5) {
+                            showNotification("You can select up to 5 industries.", "warning");
+                            return;
+                        }
+                        currentIndustries.push(industry);
+                        btn.classList.add('bg-amber-500', 'text-slate-900');
+                        btn.classList.remove('bg-slate-700', 'text-slate-200');
+                    }
+                    industryInput.value = currentIndustries.join(', ');
+                };
+            });
+
+            getEl('close-ideas-btn').onclick = () => {
+                ideasContainer.innerHTML = '';
+            };
+        }
+
+        function renderIndustryList() {
+            const listEl = getEl('manage-industries-list');
+            if (!listEl) return;
+            
+            const sortedIndustries = [...state.industries].sort((a, b) => a.localeCompare(b));
+
+            listEl.innerHTML = sortedIndustries.map(industry => `
+                <div class="flex items-center justify-between bg-slate-800 p-2.5 rounded-lg border border-slate-700">
+                    <span class="text-slate-300">${industry}</span>
+                    <button data-industry="${industry}" class="delete-industry-btn text-slate-500 hover:text-red-400 p-1 rounded-full transition-colors">
+                        <i data-lucide="x-circle" class="h-5 w-5 pointer-events-none"></i>
+                    </button>
+                </div>
+            `).join('');
+            
+            listEl.querySelectorAll('.delete-industry-btn').forEach(btn => {
+                btn.onclick = () => handleDeleteIndustry(btn.dataset.industry);
+            });
+
+            lucide.createIcons();
+        }
+
+        async function handleAddIndustry() {
+            const input = getEl('add-industry-input');
+            if (!input) return;
+            const industryName = input.value.trim();
+
+            if (!industryName) {
+                showNotification("Please enter an industry name.", "warning");
+                return;
+            }
+            if (state.industries.find(i => i.toLowerCase() === industryName.toLowerCase())) {
+                 showNotification("This industry already exists.", "warning");
+                 return;
+            }
+
+            const industriesDocRef = getDocRef('settings', 'industries');
+            if (!industriesDocRef) return;
+            await updateDoc(industriesDocRef, {
+                list: arrayUnion(industryName)
+            });
+            showNotification(`Added "${industryName}"!`, 'success');
+            input.value = '';
+        }
+
+        async function handleDeleteIndustry(industryName) {
+             const bodyHTML = `<p class="text-slate-300">Are you sure you want to delete the industry "${industryName}"?</p>`;
+             const actionsHTML = `<button id="confirm-delete-action" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700">Confirm Delete</button>
+                                  <button class="close-modal-btn bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-500">Cancel</button>`;
+            const modalId = openModal('Confirm Deletion', bodyHTML, actionsHTML);
+            
+            getEl('confirm-delete-action').onclick = async () => {
+                const industriesDocRef = getDocRef('settings', 'industries');
+                if (!industriesDocRef) return;
+                await updateDoc(industriesDocRef, {
+                    list: arrayRemove(industryName)
+                });
+                showNotification(`"${industryName}" has been deleted.`, 'success');
+                closeModal(modalId);
+            };
+        }
+        
+        async function handleClearProspects() {
+            if (state.prospects.length === 0) {
+                showNotification("Prospect list is already empty.", "info");
+                return;
+            }
+
+            const bodyHTML = `<p class="text-slate-300">Are you sure you want to delete all current prospects? This cannot be undone.</p>`;
+            const actionsHTML = `<button id="confirm-clear-action" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700">Confirm Clear</button>
+                                       <button class="close-modal-btn bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-500">Cancel</button>`;
+            const modalId = openModal('Confirm Clear Prospects', bodyHTML, actionsHTML);
+
+            getEl('confirm-clear-action').onclick = async () => {
+                closeModal(modalId);
+                const clearBtn = getEl('clear-prospects-btn');
+                if(clearBtn) setLoadingState(clearBtn, true);
+
+                try {
+                    const prospectsCollRef = getCollRef('prospects');
+                    const qSnapshot = await getDocs(query(prospectsCollRef));
+                    
+                    if (qSnapshot.empty) {
+                        showNotification("Prospect list is already empty in the database.", "info");
+                        if(clearBtn) setLoadingState(clearBtn, false);
+                        return;
+                    }
+
+                    const deleteBatch = writeBatch(state.db);
+                    qSnapshot.forEach(doc => {
+                        deleteBatch.delete(doc.ref);
+                    });
+                    await deleteBatch.commit();
+
+                    state.prospects = [];
+                    state.selectedProspects = [];
+                    renderProspects();
+
+                    showNotification("All prospects have been cleared.", "success");
+
+                } catch (error) {
+                    console.error("Error clearing prospects:", error);
+                    showNotification("An error occurred while clearing prospects.", "error");
+                } finally {
+                    if(clearBtn) setLoadingState(clearBtn, false);
+                }
+            };
+        }
+
+        // --- Prospecting Engine Functions End ---
+        
+        // --- Follow-ups Functions Start ---
+
+        function getFollowUpsHTML() {
+             return `
+                <h1 class="text-3xl font-bold text-white mb-2 text-center text-shadow-drop">Bulk Follow-up Generator</h1>
+                <p class="text-center text-slate-400 mb-6">Generate the same type of follow-up for up to 10 prospects at once.</p>
+                
+                <div class="space-y-4 max-w-4xl mx-auto">
+                    <div class="flex flex-col sm:flex-row gap-4 items-center">
+                        <div class="w-full sm:w-1/2">
+                            <label for="bulk-follow-up-type" class="sr-only">Follow-up Type</label>
+                            <select id="bulk-follow-up-type" required class="w-full p-3 border bg-slate-700 border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-400 focus:border-sky-400 outline-none transition">
+                                <option value="" disabled selected>Select a follow-up type...</option>
+                                <optgroup label="Phone">
+                                    <option value="phone-follow-up">Follow up Phone Call</option>
+                                    <option value="phone-final">Final Phone Call</option>
+                                </optgroup>
+                                <optgroup label="Email">
+                                    <option value="intro-email">Introductory Email</option>
+                                    <option value="email 2">Email 2</option>
+                                    <option value="email 3">Email 3</option>
+                                    <option value="email 4">Email 4</option>
+                                    <option value="email 5">Email 5</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="w-full sm:w-1/2">
+                             <button id="add-followup-row-btn" type="button" class="w-full bg-indigo-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-indigo-500 transition-colors duration-200 flex items-center justify-center shadow-sm"><i data-lucide="plus" class="mr-2 h-5 w-5"></i>Add Prospect</button>
+                        </div>
+                    </div>
+
+                    <div id="bulk-followup-entries" class="space-y-3">
+                        </div>
+                    
+                    <div class="border-t border-slate-700 pt-4">
+                         <button id="generate-all-followups-btn" type="button" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center shadow-sm text-base"><i data-lucide="mails" class="mr-2 h-5 w-5"></i>Generate All Follow-ups</button>
+                    </div>
+                </div>
+                <div id="bulk-followup-output" class="mt-8 space-y-6"></div>
+            `;
+        }
+        
+        async function handleGenerateAllFollowUps() {
+            const btn = getEl('generate-all-followups-btn');
+            const followUpType = getEl('bulk-follow-up-type').value;
+            const entriesContainer = getEl('bulk-followup-entries');
+            
+            if (!followUpType) {
+                return showNotification('Please select a follow-up type.', 'warning');
+            }
+
+            const prospects = Array.from(entriesContainer.querySelectorAll('.followup-row')).map(row => ({
+                company: row.querySelector('.company-input').value.trim(),
+                contact: row.querySelector('.contact-input').value.trim(),
+                note: row.querySelector('.note-input').value.trim()
+            })).filter(p => p.company && p.contact);
+
+            if (prospects.length === 0) {
+                return showNotification('Please enter at least one prospect (company and contact).', 'warning');
+            }
+
+            setLoadingState(btn, true);
+            const outputContainer = getEl('bulk-followup-output');
+            outputContainer.innerHTML = `<div class="text-center"><div class="loader inline-block"></div><p class="mt-2">Generating ${prospects.length} follow-ups...</p></div>`;
+
+            const promises = prospects.map(prospect => {
+                const noteText = prospect.note ? ` Also incorporate this important note: "${prospect.note}".` : '';
+                let prompt;
+
+                if (followUpType.startsWith('phone')) {
+                     prompt = `You are a sales rep named AJ. Generate a short, professional phone script for a ${followUpType === 'phone-final' ? 'final' : 'follow-up'} call to ${prospect.contact} at ${prospect.company}. The script should be concise and end with a question.${noteText}`;
+                } else {
+                    const commonEmailPrompt = `You are a sales rep named AJ. Generate an email for a follow-up of type "${followUpType}" to ${prospect.contact} at ${prospect.company}. Format the response with three parts separated by '---': 'SUBJECT: [Subject here]', 'BODY: [Body here]', and 'RATIONALE: [Explanation here]'. The body must end only with 'Best,'.${noteText}`;
+                    if (followUpType === 'intro-email') {
+                        prompt = `${commonEmailPrompt} This is an introductory email. Introduce Hutton Broadcasting as a local multimedia company and propose a brief meeting. The RATIONALE should explain why the email is effective for a first touch.`;
+                    } else {
+                        prompt = `${commonEmailPrompt} This is a follow-up email. Be professional but more direct. Add new value to re-engage them. The RATIONALE should explain the strategy for this specific follow-up number.`;
+                    }
+                }
+                return generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+            });
+
+            const results = await Promise.all(promises);
+            
+            outputContainer.innerHTML = ''; // Clear loader
+            
+            results.forEach((content, index) => {
+                const prospect = prospects[index];
+                const card = document.createElement('div');
+                card.className = 'card rounded-xl shadow-lg p-6';
+                let cardHTML;
+
+                if (followUpType.startsWith('phone')) {
+                    const script = content || 'Error: Could not generate script.';
+                    cardHTML = `
+                        <div class="flex justify-between items-center mb-4">
+                             <h3 class="text-lg font-semibold text-white">${prospect.company} - <span class="font-normal text-slate-300">${prospect.contact}</span></h3>
+                             <button class="copy-script-btn bg-sky-500 text-white font-semibold py-2 px-3 rounded-lg hover:bg-sky-600 transition flex items-center"><i data-lucide="copy" class="h-4 w-4 mr-2"></i>Copy</button>
+                        </div>
+                        <div class="p-3 h-48 bg-slate-800/50 border border-slate-700 rounded-lg overflow-y-auto text-slate-300 whitespace-pre-wrap script-body">${script}</div>
+                    `;
+                } else {
+                    let subject, body;
+                    if (content) {
+                        const subjectMatch = content.match(/SUBJECT:(.*?)(?:BODY:|RATIONALE:|---|$)/is);
+                        const bodyMatch = content.match(/BODY:(.*?)(?:RATIONALE:|---|$)/is);
+
+                        subject = subjectMatch ? subjectMatch[1].trim() : `Follow-up with ${prospect.company}`;
+                        body = bodyMatch ? bodyMatch[1].trim() : '';
+
+                        if (!body || body.trim() === '') { // Check if body is empty after regex
+                            const parts = content.split('---');
+                            if (parts.length >= 2) {
+                                if(!subjectMatch) subject = parts[0].replace(/SUBJECT:/i, '').trim();
+                                body = parts[1].replace(/BODY:/i, '').trim();
+                            } else {
+                                const lines = content.replace(/SUBJECT:/i, '').trim().split('\n');
+                                if (lines.length > 1) {
+                                    subject = lines[0];
+                                    body = lines.slice(1).join('\n').trim();
+                                } else {
+                                    body = content;
+                                }
+                            }
+                        }
+                    } else {
+                        subject = `Error generating email for ${prospect.company}`;
+                        body = 'The AI could not generate content for this prospect. Please try again.';
+                    }
+                     cardHTML = `
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-white">${prospect.company} - <span class="font-normal text-slate-300">${prospect.contact}</span></h3>
+                            <button class="copy-email-btn bg-sky-500 text-white font-semibold py-2 px-3 rounded-lg hover:bg-sky-600 transition flex items-center"><i data-lucide="copy" class="h-4 w-4 mr-2"></i>Copy</button>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="p-2 bg-slate-700 rounded-lg font-semibold text-white email-subject">${subject}</div>
+                            <div class="p-3 h-48 bg-slate-800/50 border border-slate-700 rounded-lg overflow-y-auto text-slate-300 whitespace-pre-wrap email-body">${body}</div>
+                        </div>
+                    `;
+                }
+                card.innerHTML = cardHTML;
+                outputContainer.appendChild(card);
+            });
+
+            outputContainer.querySelectorAll('.copy-email-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const card = btn.closest('.card');
+                    const subject = card.querySelector('.email-subject').innerText;
+                    const body = card.querySelector('.email-body').innerText;
+                    copyToClipboard(`Subject: ${subject}\n\n${body}`);
+                };
+            });
+            outputContainer.querySelectorAll('.copy-script-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const card = btn.closest('.card');
+                    const script = card.querySelector('.script-body').innerText;
+                    copyToClipboard(script);
+                };
+            });
+
+            lucide.createIcons();
+            setLoadingState(btn, false);
+        }
+
+        function addFollowUpRow() {
+            const container = getEl('bulk-followup-entries');
+            if (container.children.length >= 10) {
+                showNotification('You can add a maximum of 10 prospects at a time.', 'warning');
+                return;
+            }
+            const row = document.createElement('div');
+            row.className = 'followup-row grid grid-cols-1 md:grid-cols-3 gap-2 items-center';
+            row.innerHTML = `
+                <input type="text" class="company-input p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-sky-400" placeholder="Company Name">
+                <input type="text" class="contact-input p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-sky-400" placeholder="Contact Name">
+                <div class="flex gap-2">
+                    <input type="text" class="note-input w-full p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-sky-400" placeholder="Personalization note...">
+                    <button type="button" class="remove-followup-row-btn text-red-400 hover:text-red-300 p-2"><i data-lucide="minus-circle" class="pointer-events-none"></i></button>
+                </div>
+            `;
+            container.appendChild(row);
+            lucide.createIcons();
+        }
+
+        async function handleRefineText(action, textElement, buttons) {
+            const originalText = textElement.value;
+            if (!originalText) {
+                showNotification("There is no text to refine.", "warning");
+                return;
+            }
+
+            buttons.forEach(b => b.disabled = true);
+            const loaderDiv = document.createElement('div');
+            loaderDiv.innerHTML = `<div class="loader" style="width: 16px; height: 16px; border-width: 2px;"></div>`;
+            textElement.parentNode.insertBefore(loaderDiv, textElement);
+            textElement.style.opacity = '0.5';
+
+            let prompt;
+            switch(action) {
+                case 'polish':
+                    prompt = `You are a professional editor. Polish the following text to improve its clarity, grammar, and flow without changing its core meaning or length substantially: "${originalText}"`;
+                    break;
+                case 'formalize':
+                    prompt = `You are a business communication expert. Rewrite the following text to have a more formal and professional tone, suitable for a corporate setting: "${originalText}"`;
+                    break;
+                case 'elaborate':
+                    prompt = `You are a creative writer. Elaborate on the following text, expanding on its ideas and adding more detail to make it approximately twice as long, while maintaining its original intent: "${originalText}"`;
+                    break;
+                case 'shorten':
+                    prompt = `You are a concise writer. Shorten the following text significantly, keeping only the most essential information to convey its core message: "${originalText}"`;
+                    break;
+            }
+
+            const newText = await generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+
+            if (newText) {
+                textElement.value = newText.trim();
+            }
+            
+            loaderDiv.remove();
+            textElement.style.opacity = '1';
+            buttons.forEach(b => b.disabled = false);
+        }
+
+        // --- Follow-ups Functions End ---
+        
+        // --- Daily Planner Functions Start ---
+        
+        function getDailyPlannerHTML() {
+             return `
+                <div class="space-y-8">
+                    <h1 class="text-3xl font-bold text-white text-center text-shadow-drop">Daily Planner</h1>
+                    
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                        <section class="card rounded-xl shadow-lg p-6 xl:col-span-2">
+                            <h2 class="text-2xl font-semibold text-white mb-4 text-center">Today's Schedule</h2>
+                            <div id="daily-schedule-container" class="relative bg-slate-800/50 p-4 rounded-lg"></div>
+                        </section>
+                        <div class="card rounded-xl shadow-lg p-6">
+                            <h2 class="text-2xl font-semibold text-white mb-6 text-center">Your Google Calendar</h2>
+                            <div class="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-center">
+                                <iframe id="google-calendar-iframe" title="Google Calendar Embed" src="https://calendar.google.com/calendar/embed?src=aj%40albuquerque.com&ctz=America%2FDenver" style="border: 0" width="100%" height="600" frameborder="0" scrolling="no"></iframe>
+                                <p class="text-xs text-slate-400 mt-2">To see your personal calendar, make it public and replace the 'src' URL in the code.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section class="card rounded-xl shadow-lg p-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                            <h2 class="text-2xl font-semibold text-white">Daily Prospects</h2>
+                            <button id="reset-daily-prospects-btn" class="w-full sm:w-auto bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2">
+                                <i data-lucide="refresh-cw" class="h-4 w-4"></i> Reset for Next Day
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left daily-planner-table">
+                                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
+                                    <tr>
+                                        <th scope="col" class="p-3 w-12"></th>
+                                        <th scope="col" class="p-3 w-12"></th>
+                                        <th scope="col" class="p-3">Company</th>
+                                        <th scope="col" class="p-3">Client</th>
+                                        <th scope="col" class="p-3">Email</th>
+                                        <th scope="col" class="p-3">Phone</th>
+                                        <th scope="col" class="p-3">Notes</th>
+                                        <th scope="col" class="p-3 w-12"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="daily-prospects-list">
+                                    <!-- Prospect rows will be rendered here -->
+                                </tbody>
+                                <tfoot id="daily-prospects-add-row">
+                                    <!-- Add new prospect row will be here -->
+                                </tfoot>
+                            </table>
+                        </div>
+                    </section>
+                </div>`;
+        }
+
+        function getDailyScheduleHTML() {
+            const hourHeight = 60; // 60px per hour
+            const totalHours = 9; // 8am to 5pm
+            const totalHeight = totalHours * hourHeight;
+
+            const events = [
+                { name: 'Follow Ups & Emails', start: 8.5, end: 10, color: 'rgba(34, 197, 94, 0.7)' },
+                { name: 'Prospecting & Research', start: 10, end: 12, color: 'rgba(168, 85, 247, 0.7)' },
+                { name: 'Client Outbound Power Block', start: 13, end: 16, color: 'rgba(20, 184, 166, 0.7)' },
+                { name: 'Admin & Planning', start: 16, end: 17, color: 'rgba(249, 115, 22, 0.7)' }
+            ];
+
+            let hoursHTML = '';
+            for (let i = 0; i < totalHours + 1; i++) {
+                const hour = 8 + i;
+                const displayHour = hour > 12 ? hour - 12 : hour;
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                hoursHTML += `
+                    <div class="h-[${hourHeight}px] flex items-start">
+                        <span class="text-xs text-slate-400 -mt-2">${displayHour}:00 ${ampm}</span>
+                        <div class="flex-grow border-b border-dashed border-slate-700 ml-2 mt-0"></div>
+                    </div>
+                `;
+            }
+
+            const eventsHTML = events.map(event => {
+                const top = (event.start - 8) * hourHeight;
+                const height = (event.end - event.start) * hourHeight;
+                const startTime = `${Math.floor(event.start) > 12 ? Math.floor(event.start) - 12 : Math.floor(event.start)}:${event.start % 1 !== 0 ? '30' : '00'}`;
+                const endTime = `${Math.floor(event.end) > 12 ? Math.floor(event.end) - 12 : Math.floor(event.end)}:00`;
+                const title = `${event.name} (${startTime} - ${endTime})`;
+
+                return `
+                    <div class="absolute left-[4.5rem] right-0 p-2 rounded-lg text-white font-semibold text-sm" title="${title}" style="top: ${top}px; height: ${height}px; background-color: ${event.color};">
+                         ${event.name} <br>
+                        <span class="font-normal text-xs">${startTime} - ${endTime}</span>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="flex" style="height: ${totalHeight + hourHeight}px;">
+                    <div class="w-16">${hoursHTML}</div>
+                    <div class="relative flex-grow">
+                        ${eventsHTML}
+                        <div id="current-time-indicator" class="absolute w-full h-0.5 bg-red-500 z-10 hidden">
+                            <div class="absolute -left-1.5 -top-1.5 w-3 h-3 bg-red-500 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateCurrentTimeIndicator() {
+            const indicator = getEl('current-time-indicator');
+            if (!indicator) return;
+
+            const now = new Date();
+            const startOfDay = new Date();
+            startOfDay.setHours(8, 0, 0, 0);
+            const endOfDay = new Date();
+            endOfDay.setHours(17, 0, 0, 0);
+
+            if (now < startOfDay || now > endOfDay) {
+                indicator.classList.add('hidden');
+                return;
+            }
+            
+            indicator.classList.remove('hidden');
+
+            const totalMinutesInDay = (17 - 8) * 60;
+            const minutesFromStart = (now.getHours() - 8) * 60 + now.getMinutes();
+            const percentage = (minutesFromStart / totalMinutesInDay) * 100;
+            
+            indicator.style.top = `${percentage}%`;
+        }
+
+
+        function renderDailyProspects() {
+            const listEl = getEl('daily-prospects-list');
+            const addRowEl = getEl('daily-prospects-add-row');
+            if (!listEl || !addRowEl) return;
+
+            if (state.dailyProspects.length === 0) {
+                listEl.innerHTML = `<tr><td colspan="8" class="text-center text-slate-500 p-8">No prospects for today. Add some below or from the Prospecting Engine.</td></tr>`;
+            } else {
+                 listEl.innerHTML = ''; // Clear existing list
+            }
+
+            state.dailyProspects.forEach(prospect => {
+                const itemEl = document.createElement('tr');
+                itemEl.dataset.id = prospect.id;
+                itemEl.draggable = true;
+                itemEl.className = `daily-prospect-item border-b border-slate-700 hover:bg-slate-800/50 cursor-grab ${prospect.isCompleted ? 'opacity-60 bg-green-500/10' : ''}`;
+                
+                itemEl.innerHTML = `
+                    <td class="p-3 text-center"><i data-lucide="grip-vertical" class="h-5 w-5 text-slate-500 inline-block"></i></td>
+                    <td class="p-3 text-center"><input type="checkbox" class="dp-checkbox h-5 w-5 rounded bg-slate-700 border-slate-600 text-sky-500 focus:ring-sky-500" ${prospect.isCompleted ? 'checked' : ''}></td>
+                    <td class="p-2 font-semibold text-white">${prospect.companyName}</td>
+                    <td class="p-2">${prospect.clientName}</td>
+                    <td class="p-2">${prospect.email}</td>
+                    <td class="p-2">${prospect.phone}</td>
+                    <td class="p-2"><textarea class="dp-notes-input w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-sm resize-y" rows="1" placeholder="Add notes...">${prospect.notes || ''}</textarea></td>
+                    <td class="p-3 text-center"><button class="dp-delete-btn text-red-500 hover:text-red-400 p-1 rounded-full"><i data-lucide="x-circle" class="h-5 w-5 pointer-events-none"></i></button></td>
+                `;
+                listEl.appendChild(itemEl);
+
+                // Event Listeners for the new item
+                itemEl.querySelector('.dp-checkbox').onchange = (e) => {
+                    const docRef = getDocRef('dailyPlanner', prospect.id);
+                    updateDoc(docRef, { isCompleted: e.target.checked });
+                };
+                itemEl.querySelector('.dp-notes-input').onblur = (e) => {
+                    const docRef = getDocRef('dailyPlanner', prospect.id);
+                    updateDoc(docRef, { notes: e.target.value });
+                };
+                itemEl.querySelector('.dp-delete-btn').onclick = () => {
+                    const docRef = getDocRef('dailyPlanner', prospect.id);
+                    deleteDoc(docRef).then(() => showNotification('Prospect removed from daily list.', 'success'));
+                };
+            });
+
+            addRowEl.innerHTML = `
+                <tr class="bg-slate-800/50">
+                    <td class="p-3 text-center" colspan="2"><i data-lucide="plus-circle" class="h-5 w-5 text-slate-500 inline-block"></i></td>
+                    <td class="p-2"><input id="dp-company" type="text" placeholder="Company Name" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg"></td>
+                    <td class="p-2"><input id="dp-name" type="text" placeholder="Client Name" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg"></td>
+                    <td class="p-2"><input id="dp-email" type="email" placeholder="Client Email" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg"></td>
+                    <td class="p-2"><input id="dp-phone" type="tel" placeholder="Client Phone" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg"></td>
+                    <td class="p-2"><input id="dp-notes" type="text" placeholder="Initial Notes" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg"></td>
+                    <td class="p-3 text-center"><button id="add-daily-prospect-manual-btn" class="bg-sky-600 text-white font-semibold p-2 rounded-lg hover:bg-sky-500 transition"><i data-lucide="plus"></i></button></td>
+                </tr>
+            `;
+            
+            addDragAndDropListeners(listEl, saveDailyProspectsOrder);
+            lucide.createIcons();
+        }
+
+        async function handleAddProspectToDailyPlanner(prospectData) {
+            const plannerCollRef = getCollRef('dailyPlanner');
+            if (!plannerCollRef) return;
+
+            // Check for duplicates
+            const alreadyExists = state.dailyProspects.some(p => p.companyName.toLowerCase() === prospectData.businessName.toLowerCase());
+            if (alreadyExists) {
+                showNotification(`${prospectData.businessName} is already on your daily list.`, 'warning');
+                return;
+            }
+
+            const newProspect = {
+                companyName: prospectData.businessName,
+                clientName: prospectData.decisionMaker.name,
+                email: prospectData.decisionMaker.email,
+                phone: prospectData.decisionMaker.phone,
+                notes: prospectData.notes || '',
+                isCompleted: false,
+                order: state.dailyProspects.length, // Add to the end
+                addedAt: new Date()
+            };
+
+            try {
+                await addDoc(plannerCollRef, newProspect);
+                showNotification(`${newProspect.companyName} added to Daily Planner!`, 'success');
+                if (prospectData.modalId) closeModal(prospectData.modalId);
+            } catch (error) {
+                console.error("Error adding prospect to daily planner:", error);
+                showNotification("Could not add prospect to planner.", "error");
+            }
+        }
+        
+        async function handleResetDailyProspects() {
+            const bodyHTML = `<p class="text-slate-300">Are you sure you want to clear all prospects from your daily planner? This is great for starting a new day.</p>`;
+            const actionsHTML = `<button id="confirm-reset-action" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700">Yes, Reset</button>
+                                 <button class="close-modal-btn bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-500">Cancel</button>`;
+            const modalId = openModal('Confirm Reset', bodyHTML, actionsHTML);
+
+            getEl('confirm-reset-action').onclick = async () => {
+                closeModal(modalId);
+                const plannerCollRef = getCollRef('dailyPlanner');
+                const qSnapshot = await getDocs(query(plannerCollRef));
+                
+                const batch = writeBatch(state.db);
+                qSnapshot.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                
+                showNotification('Daily prospects cleared!', 'success');
+            };
+        }
+
+        async function saveDailyProspectsOrder() {
+            const listEl = getEl('daily-prospects-list');
+            if (!listEl) return;
+
+            const items = listEl.querySelectorAll('.daily-prospect-item');
+            const batch = writeBatch(state.db);
+
+            items.forEach((item, index) => {
+                const docId = item.dataset.id;
+                const docRef = getDocRef('dailyPlanner', docId);
+                batch.update(docRef, { order: index });
+            });
+
+            try {
+                await batch.commit();
+            } catch (error) {
+                console.error("Error saving order:", error);
+                showNotification('Could not save new order.', 'error');
+            }
+        }
+        
+        // --- Daily Planner Functions End ---
+        
+        // --- Proposal Tracker Functions Start ---
+
+        function getProposalTrackerHTML() {
+            return `
+                <div class="space-y-8">
+                    <h1 class="text-3xl font-bold text-white text-center text-shadow-drop">Proposal Tracker</h1>
+                    
+                    <section class="card rounded-xl shadow-lg p-6">
+                        <h2 class="text-2xl font-semibold text-white mb-4">Add New Proposal</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <input id="proposal-company" type="text" placeholder="Company Name" class="p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                            <input id="proposal-contact" type="text" placeholder="Contact Name" class="p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                            <input id="proposal-notes" type="text" placeholder="Initial Notes" class="p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                        </div>
+                        <button id="add-proposal-btn" class="w-full bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-500 transition">Add to 'Requested'</button>
+                    </section>
+                    
+                    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Requested Column -->
+                        <div class="bg-slate-900/50 rounded-lg p-4">
+                            <h3 class="font-bold text-lg text-amber-400 mb-4 text-center">Requested</h3>
+                            <div id="proposal-col-requested" data-status="Requested" class="proposal-column space-y-3 p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 min-h-[200px] overflow-y-auto"></div>
+                        </div>
+                        <!-- In Progress Column -->
+                        <div class="bg-slate-900/50 rounded-lg p-4">
+                            <h3 class="font-bold text-lg text-sky-400 mb-4 text-center">In Progress</h3>
+                            <div id="proposal-col-in-progress" data-status="In Progress" class="proposal-column space-y-3 p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 min-h-[200px] overflow-y-auto"></div>
+                        </div>
+                        <!-- Proposal Sent Column -->
+                        <div class="bg-slate-900/50 rounded-lg p-4">
+                            <h3 class="font-bold text-lg text-green-400 mb-4 text-center">Proposal Sent</h3>
+                            <div id="proposal-col-proposal-sent" data-status="Proposal Sent" class="proposal-column space-y-3 p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 min-h-[200px] overflow-y-auto"></div>
+                        </div>
+                    </section>
+                </div>
+            `;
+        }
+
+        function renderProposalTracker() {
+            const statuses = ["Requested", "In Progress", "Proposal Sent"];
+            statuses.forEach(status => {
+                const colId = `proposal-col-${status.toLowerCase().replace(' ', '-')}`;
+                const colEl = getEl(colId);
+                if(colEl) colEl.innerHTML = '';
+            });
+
+            state.proposals.forEach(proposal => {
+                const statusKey = proposal.status.toLowerCase().replace(' ', '-');
+                const colEl = getEl(`proposal-col-${statusKey}`);
+                if (colEl) {
+                    const card = document.createElement('div');
+                    card.dataset.id = proposal.id;
+                    card.draggable = true;
+                    card.className = 'proposal-card p-3 bg-slate-800 rounded-lg border border-slate-700 cursor-grab';
+                    
+                    const hasLink = proposal.link && proposal.link.trim() !== '';
+                    const linkButtonHTML = hasLink 
+                        ? `<a href="${proposal.link}" target="_blank" class="bg-green-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-green-700 transition text-xs flex items-center gap-1"><i data-lucide="external-link" class="h-3 w-3"></i>View Proposal</a>`
+                        : `<button data-action="add-link" class="bg-blue-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-blue-700 transition text-xs flex items-center gap-1"><i data-lucide="plus" class="h-3 w-3"></i>Add Proposal Link</button>`;
+
+                    card.innerHTML = `
+                        <p class="font-bold text-white">${proposal.companyName}</p>
+                        <p class="text-sm text-slate-400">${proposal.contactName || 'No contact specified'}</p>
+                        <p class="text-sm text-slate-300 mt-2 whitespace-pre-wrap">${proposal.notes || ''}</p>
+                        <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-700/50">
+                            ${linkButtonHTML}
+                            <div class="flex items-center gap-1">
+                                <button data-action="edit" class="p-1 hover:bg-slate-600 rounded-full"><i data-lucide="edit" class="h-4 w-4 text-slate-400 pointer-events-none"></i></button>
+                                <button data-action="delete" class="p-1 hover:bg-slate-600 rounded-full"><i data-lucide="trash-2" class="h-4 w-4 text-red-500 pointer-events-none"></i></button>
+                            </div>
+                        </div>
+                    `;
+                    colEl.appendChild(card);
+                    card.querySelector('[data-action="edit"]').onclick = () => openEditProposalModal(proposal);
+                    card.querySelector('[data-action="delete"]').onclick = () => handleDeleteProposal(proposal.id);
+                    if (!hasLink) {
+                        card.querySelector('[data-action="add-link"]').onclick = () => openAddProposalLinkModal(proposal);
+                    }
+                }
+            });
+
+            lucide.createIcons();
+            addProposalDragDropListeners();
+        }
+
+        async function handleAddProposal() {
+            const companyInput = getEl('proposal-company');
+            const contactInput = getEl('proposal-contact');
+            const notesInput = getEl('proposal-notes');
+
+            const companyName = companyInput.value.trim();
+            if (!companyName) {
+                showNotification("Company name is required.", "warning");
+                return;
+            }
+
+            const newProposal = {
+                companyName,
+                contactName: contactInput.value.trim(),
+                notes: notesInput.value.trim(),
+                status: "Requested",
+                link: "",
+                updatedAt: new Date()
+            };
+
+            try {
+                await addDoc(getCollRef('proposals'), newProposal);
+                showNotification("Proposal added!", "success");
+                companyInput.value = '';
+                contactInput.value = '';
+                notesInput.value = '';
+            } catch (error) {
+                console.error("Error adding proposal:", error);
+                showNotification("Could not add proposal.", "error");
+            }
+        }
+        
+        function openEditProposalModal(proposal) {
+            const modalId = `edit-proposal-${proposal.id}`;
+            const bodyHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <label for="${modalId}-company" class="block text-sm font-medium text-slate-400 mb-1">Company Name</label>
+                        <input id="${modalId}-company" type="text" value="${proposal.companyName}" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="${modalId}-contact" class="block text-sm font-medium text-slate-400 mb-1">Contact Name</label>
+                        <input id="${modalId}-contact" type="text" value="${proposal.contactName || ''}" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="${modalId}-link" class="block text-sm font-medium text-slate-400 mb-1">Proposal Link (URL)</label>
+                        <input id="${modalId}-link" type="url" value="${proposal.link || ''}" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="${modalId}-notes" class="block text-sm font-medium text-slate-400 mb-1">Notes</label>
+                        <textarea id="${modalId}-notes" class="w-full h-24 p-2 bg-slate-700 border border-slate-600 rounded-lg">${proposal.notes || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            const actionsHTML = `<button id="save-proposal-btn" class="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg">Save Changes</button>`;
+            
+            openModal('Edit Proposal', bodyHTML, actionsHTML, modalId);
+
+            getEl('save-proposal-btn').onclick = async () => {
+                const updatedData = {
+                    companyName: getEl(`${modalId}-company`).value.trim(),
+                    contactName: getEl(`${modalId}-contact`).value.trim(),
+                    link: getEl(`${modalId}-link`).value.trim(),
+                    notes: getEl(`${modalId}-notes`).value.trim(),
+                    updatedAt: new Date()
+                };
+                if (!updatedData.companyName) {
+                    showNotification("Company name cannot be empty.", "warning");
+                    return;
+                }
+                const docRef = getDocRef('proposals', proposal.id);
+                await updateDoc(docRef, updatedData);
+                showNotification("Proposal updated!", "success");
+                closeModal(modalId);
+            };
+        }
+
+        function openAddProposalLinkModal(proposal) {
+            const modalId = `add-link-${proposal.id}`;
+            const bodyHTML = `
+                <div>
+                    <label for="${modalId}-link" class="block text-sm font-medium text-slate-400 mb-1">Google Doc Link</label>
+                    <input id="${modalId}-link" type="url" placeholder="https://docs.google.com/..." class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                </div>
+            `;
+            const actionsHTML = `<button id="save-link-btn" class="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg">Save Link</button>`;
+            
+            openModal(`Add Link for ${proposal.companyName}`, bodyHTML, actionsHTML, modalId);
+
+            getEl('save-link-btn').onclick = async () => {
+                const link = getEl(`${modalId}-link`).value.trim();
+                if (!link) {
+                    showNotification("Please enter a link.", "warning");
+                    return;
+                }
+                const docRef = getDocRef('proposals', proposal.id);
+                await updateDoc(docRef, { link: link, updatedAt: new Date() });
+                showNotification("Link added!", "success");
+                closeModal(modalId);
+            };
+        }
+
+        async function handleDeleteProposal(proposalId) {
+            const bodyHTML = `<p class="text-slate-300">Are you sure you want to delete this proposal? This cannot be undone.</p>`;
+            const actionsHTML = `<button id="confirm-delete-proposal" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg">Confirm Delete</button>`;
+            const modalId = openModal('Confirm Deletion', bodyHTML, actionsHTML);
+
+            getEl('confirm-delete-proposal').onclick = async () => {
+                await deleteDoc(getDocRef('proposals', proposalId));
+                showNotification("Proposal deleted.", "success");
+                closeModal(modalId);
+            };
+        }
+        
+        function addProposalDragDropListeners() {
+            const columns = document.querySelectorAll('.proposal-column');
+            let draggedItem = null;
+
+            document.querySelectorAll('.proposal-card').forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    draggedItem = item;
+                    setTimeout(() => item.classList.add('dragging'), 0);
+                });
+                item.addEventListener('dragend', () => {
+                    if (draggedItem) {
+                        draggedItem.classList.remove('dragging');
+                        draggedItem = null;
+                    }
+                });
+            });
+
+            columns.forEach(column => {
+                column.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    const afterElement = getDragAfterElement(column, e.clientY);
+                    if (draggedItem) {
+                         if (afterElement == null) {
+                            column.appendChild(draggedItem);
+                        } else {
+                            column.insertBefore(draggedItem, afterElement);
+                        }
+                    }
+                });
+                
+                column.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    if (draggedItem) {
+                        const newStatus = column.dataset.status;
+                        const proposalId = draggedItem.dataset.id;
+                        const docRef = getDocRef('proposals', proposalId);
+                        await updateDoc(docRef, { status: newStatus, updatedAt: new Date() });
+                        showNotification('Status updated!', 'success', 1500);
+                    }
+                });
+            });
+        }
+
+        // --- Proposal Tracker Functions End ---
+
+        // --- Field Log Functions Start ---
+        
+        function getFieldLogHTML() {
+            return `
+                 <div class="space-y-8">
+                    <h1 class="text-3xl font-bold text-white text-center text-shadow-drop">Field Log</h1>
+                    <p class="text-center text-slate-400 -mt-6">Quickly log prospects you see in the wild.</p>
+                    
+                    <section class="card rounded-xl shadow-lg p-6 max-w-4xl mx-auto">
+                        <h2 class="text-2xl font-semibold text-white mb-4">Add New Entry</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <input id="field-log-company" type="text" placeholder="Company Name" class="p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                            <select id="field-log-source" class="p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                                <option value="" disabled selected>Select Source...</option>
+                                <option>TV</option>
+                                <option>Radio</option>
+                                <option>Digital</option>
+                                <option>Billboard</option>
+                                <option>Magazine</option>
+                                <option>Business Front</option>
+                                <option>Event</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                             <textarea id="field-log-notes" placeholder="Add notes..." class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg h-20 resize-y"></textarea>
+                        </div>
+                        <button id="add-field-log-btn" class="w-full bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-500 transition">Log Prospect</button>
+                    </section>
+
+                    <section id="field-log-list" class="space-y-3 max-w-4xl mx-auto"></section>
+                </div>
+            `;
+        }
+        
+        function renderFieldLog() {
+            const listEl = getEl('field-log-list');
+            if (!listEl) return;
+
+            if (state.fieldLog.length === 0) {
+                listEl.innerHTML = `<div class="text-center text-slate-500 p-8">No prospects logged yet.</div>`;
+                return;
+            }
+
+            listEl.innerHTML = state.fieldLog.map(entry => `
+                <div class="card rounded-xl shadow-lg p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-lg text-white">${entry.companyName}</p>
+                            <p class="text-sm text-slate-400">Source: ${entry.source} &bull; Logged: ${new Date(entry.createdAt.seconds * 1000).toLocaleDateString()}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button data-id="${entry.id}" class="edit-field-log-btn p-2 hover:bg-slate-600 rounded-full"><i data-lucide="edit" class="h-4 w-4 text-slate-400 pointer-events-none"></i></button>
+                            <button data-id="${entry.id}" class="delete-field-log-btn p-2 hover:bg-slate-600 rounded-full"><i data-lucide="trash-2" class="h-4 w-4 text-red-500 pointer-events-none"></i></button>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-300 mt-2 whitespace-pre-wrap pt-2 border-t border-slate-700/50">${entry.notes || 'No notes.'}</p>
+                </div>
+            `).join('');
+
+            listEl.querySelectorAll('.edit-field-log-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const entry = state.fieldLog.find(e => e.id === btn.dataset.id);
+                    if(entry) openEditFieldLogModal(entry);
+                };
+            });
+            listEl.querySelectorAll('.delete-field-log-btn').forEach(btn => {
+                btn.onclick = () => handleDeleteFieldLogEntry(btn.dataset.id);
+            });
+
+            lucide.createIcons();
+        }
+
+        async function handleAddFieldLogEntry() {
+            const companyInput = getEl('field-log-company');
+            const sourceInput = getEl('field-log-source');
+            const notesInput = getEl('field-log-notes');
+            const companyName = companyInput.value.trim();
+            const source = sourceInput.value;
+            const notes = notesInput.value.trim();
+
+            if (!companyName) {
+                showNotification("Company name is required.", "warning");
+                return;
+            }
+             if (!source) {
+                showNotification("Please select a source.", "warning");
+                return;
+            }
+
+            const newEntry = {
+                companyName,
+                source,
+                notes,
+                createdAt: new Date()
+            };
+
+            try {
+                await addDoc(getCollRef('fieldLog'), newEntry);
+                showNotification("Prospect logged!", "success");
+                companyInput.value = '';
+                sourceInput.value = '';
+                notesInput.value = '';
+            } catch (error) {
+                console.error("Error logging prospect:", error);
+                showNotification("Could not log prospect.", "error");
+            }
+        }
+
+        function openEditFieldLogModal(entry) {
+            const modalId = `edit-log-${entry.id}`;
+            const bodyHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <label for="${modalId}-company" class="block text-sm font-medium text-slate-400 mb-1">Company Name</label>
+                        <input id="${modalId}-company" type="text" value="${entry.companyName}" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="${modalId}-source" class="block text-sm font-medium text-slate-400 mb-1">Source</label>
+                        <select id="${modalId}-source" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg">
+                            <option>TV</option>
+                            <option>Radio</option>
+                            <option>Digital</option>
+                            <option>Billboard</option>
+                            <option>Magazine</option>
+                            <option>Business Front</option>
+                            <option>Event</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label for="${modalId}-notes" class="block text-sm font-medium text-slate-400 mb-1">Notes</label>
+                        <textarea id="${modalId}-notes" class="w-full h-24 p-2 bg-slate-700 border border-slate-600 rounded-lg">${entry.notes || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            const actionsHTML = `<button id="save-log-btn" class="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg">Save Changes</button>`;
+            
+            openModal('Edit Field Log Entry', bodyHTML, actionsHTML, modalId);
+            
+            getEl(`${modalId}-source`).value = entry.source; // Set the current source in the dropdown
+
+            getEl('save-log-btn').onclick = async () => {
+                const updatedData = {
+                    companyName: getEl(`${modalId}-company`).value.trim(),
+                    source: getEl(`${modalId}-source`).value,
+                    notes: getEl(`${modalId}-notes`).value.trim(),
+                };
+                if (!updatedData.companyName) {
+                    showNotification("Company name cannot be empty.", "warning");
+                    return;
+                }
+                const docRef = getDocRef('fieldLog', entry.id);
+                await updateDoc(docRef, updatedData);
+                showNotification("Entry updated!", "success");
+                closeModal(modalId);
+            };
+        }
+
+        async function handleDeleteFieldLogEntry(entryId) {
+             const bodyHTML = `<p class="text-slate-300">Are you sure you want to delete this log entry? This cannot be undone.</p>`;
+            const actionsHTML = `<button id="confirm-delete-log" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg">Confirm Delete</button>`;
+            const modalId = openModal('Confirm Deletion', bodyHTML, actionsHTML);
+
+            getEl('confirm-delete-log').onclick = async () => {
+                await deleteDoc(getDocRef('fieldLog', entryId));
+                showNotification("Log entry deleted.", "success");
+                closeModal(modalId);
+            };
+        }
+
+        // --- Field Log Functions End ---
+
+        // --- Business Intelligence Functions Start ---
+        function getNewsIntelligenceHTML(isFullView = true) {
+            const listHeightClass = isFullView ? 'news-feed' : 'news-feed max-h-[28rem] overflow-y-auto pr-2 -mr-2';
+            const titleClass = isFullView ? 'text-3xl' : 'text-2xl text-center';
+            const headerClass = isFullView ? 'flex justify-between items-center mb-8' : 'flex justify-between items-center mb-4';
+            const buttonText = isFullView ? '<span>Refresh News</span>' : '<span class="hidden sm:inline">Refresh</span>';
+
+            return `
+                <div class="${headerClass}">
+                    <h1 class="${titleClass} font-bold text-white text-shadow-drop">Business Intelligence</h1>
+                    <button id="refresh-news-btn" class="bg-sky-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-600 transition flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="h-5 w-5"></i>
+                        ${buttonText}
+                    </button>
+                </div>
+                <div id="news-feed" class="space-y-6 ${listHeightClass}">
+                    <!-- News items will be rendered here -->
+                </div>`;
+        }
+
+        function fetchNews() {
+            const newsFeed = getEl('news-feed');
+            if (!newsFeed) return;
+            
+            const refreshBtn = getEl('refresh-news-btn');
+            if (refreshBtn) setLoadingState(refreshBtn, true);
+
+            newsFeed.innerHTML = `<div class="flex justify-center items-center p-12"><div class="loader"></div></div>`;
+
+            // Simulate API call delay
+            setTimeout(() => {
+                const intelligenceItems = [
+                    {
+                        headline: "UNM Approves Land for Major 'Lobo Crossing' Retail Center",
+                        summary: "The UNM Board of Regents approved a 38-acre land deal with developer SimonCRE for a 363,000-square-foot open-air retail center on South Campus. This is the largest retail development in NM in decades.",
+                        source: "UNM Newsroom",
+                        date: "July 1, 2025",
+                        idea: "Target contractors and service providers (landscaping, security, cleaning) who could bid for work at the new Lobo Crossing center. Also, prospect small local retailers who might be looking for a new, high-traffic location."
+                    },
+                    {
+                        headline: "Santa Fe Launches Food Business Incubator Program",
+                        summary: "The City of Santa Fe's Office of Economic Development has partnered with The Kitchen Table to launch a new bilingual incubator program for food-based startups.",
+                        source: "Santa Fe Chamber of Commerce",
+                        date: "June 2025",
+                        idea: "Contact the Santa Fe Office of Economic Development to get a list of participating food businesses. These new ventures will need marketing, branding, and advertising to launch successfully."
+                    },
+                    {
+                        headline: "Lovelace Health System Breaks Ground on New Bernalillo Facility",
+                        summary: "Lovelace has started construction on a new Urgent and Primary Care facility in Bernalillo, expanding healthcare services in the area.",
+                        source: "Greater Albuquerque Chamber of Commerce",
+                        date: "June 22, 2025",
+                        idea: "Identify the general contractor for the project. Prospect subcontractors (electrical, plumbing, HVAC) and suppliers who may be involved in the construction and furnishing of the new clinic."
+                    },
+                    {
+                        headline: "Small Businesses Report Labor Quality as Top Challenge",
+                        summary: "A recent NFIB report indicates that 36% of small business owners are struggling to fill job openings, with labor quality being a primary concern.",
+                        source: "NFIB",
+                        date: "July 2, 2025",
+                        idea: "Frame digital advertising as a solution for recruitment. Businesses struggling to hire are prime candidates for targeted campaigns to attract qualified applicants on radio websites and social media."
+                    },
+                    {
+                        headline: "Charter School Plans New Westside Location in Albuquerque",
+                        summary: "The Rio Grande Academy of Fine Arts is planning a major expansion with a new school to be built on a 9-acre site on the westside.",
+                        source: "Albuquerque Business First",
+                        date: "July 1, 2025",
+                        idea: "Connect with the school's board or administration. New school construction offers opportunities to target builders, architects, and suppliers. Once open, the school itself will have marketing needs."
+                    }
+                ];
+
+                newsFeed.innerHTML = intelligenceItems.map(item => `
+                    <div class="card rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-sky-400 mb-2">${item.headline}</h3>
+                        <p class="text-slate-300 mb-4">${item.summary}</p>
+                        <div class="border-t border-amber-500/30 pt-4">
+                            <p class="text-amber-400 font-semibold mb-2 flex items-center gap-2"><i data-lucide="lightbulb" class="h-5 w-5"></i> Prospecting Idea</p>
+                            <p class="text-sm text-slate-300 text-sm mb-4">${item.idea}</p>
+                        </div>
+                        <div class="text-xs text-slate-500 flex justify-between items-center">
+                            <span>Source: ${item.source}</span>
+                            <span>Date: ${item.date}</span>
+                        </div>
+                    </div>
+                `).join('');
+                
+                if (refreshBtn) setLoadingState(refreshBtn, false);
+                lucide.createIcons();
+            }, 1000);
+        }
+        // --- Business Intelligence Functions End ---
+
+        function getTaskListHTML(isFullView = false) {
+            const listHeightClass = isFullView ? '' : 'max-h-64 overflow-y-auto task-list-scroll';
+            return `<div class="card rounded-xl shadow-lg p-6 h-full flex flex-col">
+               <div class="p-3 bg-slate-900/50 rounded-lg border border-slate-700 space-y-4 flex-grow flex flex-col">
+                   <h2 class="text-2xl font-semibold text-white mb-4 text-center">Task List</h2>
+                   <div class="space-y-2">
+                     <input type="text" id="task-account-name" placeholder="Account Name" class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg"/>
+                     <textarea id="task-description" placeholder="Enter task details..." class="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg h-24 resize-y"></textarea>
+                   </div>
+                   <button id="add-task-btn" class="w-full bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-500 transition-colors">Add Task</button>
+                   <div id="task-list" class="space-y-2 pt-2 flex-grow ${listHeightClass}"></div>
+               </div>
+            </div>`;
+        }
+        
+        /** NEW HELPER FUNCTION TO REDUCE DUPLICATION **/
+        function createRefineSectionHTML(modalId) {
+            return `
+                <div class="mt-4 p-3 bg-slate-900/50 border border-slate-700/50 rounded-lg">
+                    <h4 class="font-bold text-amber-400 mb-3">Refine my message</h4>
+                    <div id="refine-actions-${modalId}" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button data-refine-action="polish" class="refine-btn flex items-center justify-center gap-2 bg-slate-700 p-2 rounded-md hover:bg-slate-600 transition-colors"><i data-lucide="sparkles" class="h-4 w-4"></i>Polish</button>
+                        <button data-refine-action="formalize" class="refine-btn flex items-center justify-center gap-2 bg-slate-700 p-2 rounded-md hover:bg-slate-600 transition-colors"><i data-lucide="briefcase" class="h-4 w-4"></i>Formalize</button>
+                        <button data-refine-action="elaborate" class="refine-btn flex items-center justify-center gap-2 bg-slate-700 p-2 rounded-md hover:bg-slate-600 transition-colors"><i data-lucide="pilcrow" class="h-4 w-4"></i>Elaborate</button>
+                        <button data-refine-action="shorten" class="refine-btn flex items-center justify-center gap-2 bg-slate-700 p-2 rounded-md hover:bg-slate-600 transition-colors"><i data-lucide="text-quote" class="h-4 w-4"></i>Shorten</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function openEmailModal(content) {
+            let subject, body, rationale;
+            
+            const subjectMatch = content.match(/SUBJECT:(.*?)(?:BODY:|RATIONALE:|---|$)/is);
+            const bodyMatch = content.match(/BODY:(.*?)(?:RATIONALE:|---|$)/is);
+            const rationaleMatch = content.match(/RATIONALE:(.*)/is);
+
+            subject = subjectMatch ? subjectMatch[1].trim() : 'Follow Up';
+            body = bodyMatch ? bodyMatch[1].trim() : '';
+            rationale = rationaleMatch ? rationaleMatch[1].trim() : 'No rationale provided.';
+            
+            if (!body) {
+                const parts = content.split('---');
+                if (parts.length >= 2) {
+                    if (!subjectMatch) subject = parts[0].replace(/SUBJECT:/i, '').trim();
+                    body = parts[1].replace(/BODY:/i, '').trim();
+                    if(parts[2] && !rationaleMatch) rationale = parts[2].replace(/RATIONALE:/i, '').trim();
+                } else {
+                     body = content;
+                }
+            }
+
+            const modalId = `email-modal-${Date.now()}`;
+            const textId = `email-body-${modalId}`;
+            
+            const modalHTML = `
+                <div class="space-y-4">
+                    <div id="email-subject-${modalId}" class="p-2 bg-slate-700 rounded-lg font-semibold text-white">${subject}</div>
+                    <textarea id="${textId}" class="w-full h-60 p-2 bg-slate-700 border border-slate-600 rounded-lg">${body}</textarea>
+                    ${createRefineSectionHTML(modalId)}
+                    ${rationale !== 'No rationale provided.' ? `<div class="mt-4 p-3 bg-slate-900/50 border border-slate-700 rounded-lg">
+                        <h4 class="font-bold text-amber-400">Rationale</h4>
+                        <p class="text-sm text-slate-400 mt-1">${rationale.replace(/\n/g, '<br>')}</p>
+                    </div>` : ''}
+                </div>
+            `;
+            const actionsHTML = `<button id="copy-btn-${modalId}" class="bg-sky-500 text-white font-semibold py-2 px-4 rounded-lg">Copy Email</button><button class="close-modal-btn bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg">Close</button>`;
+            
+            openModal('Generated Email', modalHTML, actionsHTML, modalId);
+
+            const textElement = getEl(textId);
+            const refineButtons = document.querySelectorAll(`#refine-actions-${modalId} .refine-btn`);
+            refineButtons.forEach(button => {
+                button.onclick = () => handleRefineText(button.dataset.refineAction, textElement, refineButtons);
+            });
+
+            getEl(`copy-btn-${modalId}`).onclick = () => {
+                const finalSubject = getEl(`email-subject-${modalId}`).innerText;
+                const finalBody = getEl(textId).value;
+                copyToClipboard(`Subject: ${finalSubject}\n\n${finalBody}`);
+            };
+        }
+        
+        function openScriptModal(content) {
+            const script = content.trim();
+            const modalId = `script-modal-${Date.now()}`;
+            const textId = `script-body-${modalId}`;
+
+            const modalHTML = `
+                <div class="space-y-4">
+                    <textarea id="${textId}" class="w-full h-48 p-2 bg-slate-700 border border-slate-600 rounded-lg">${script}</textarea>
+                     ${createRefineSectionHTML(modalId)}
+                </div>
+            `;
+            const actionsHTML = `<button id="copy-btn-${modalId}" class="bg-sky-500 text-white font-semibold py-2 px-4 rounded-lg">Copy Script</button><button class="close-modal-btn bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg">Close</button>`;
+            
+            openModal('Generated Script', modalHTML, actionsHTML, modalId);
+
+            const textElement = getEl(textId);
+            const refineButtons = document.querySelectorAll(`#refine-actions-${modalId} .refine-btn`);
+            refineButtons.forEach(button => {
+                button.onclick = () => handleRefineText(button.dataset.refineAction, textElement, refineButtons);
+            });
+
+            getEl(`copy-btn-${modalId}`).onclick = () => copyToClipboard(textElement.value);
+        }
+
+        function renderTasks() {
+            const taskList = getEl('task-list');
+            if(!taskList) return;
+            taskList.innerHTML = '';
+            if (state.reminders && state.reminders.length > 0) {
+                const sortedTasks = state.reminders.filter(r => r.added && typeof r.added.toMillis === 'function');
+                sortedTasks.sort((a,b) => b.added.toMillis() - a.added.toMillis());
+                
+                sortedTasks.forEach(task => {
+                    const taskEl = document.createElement('div');
+                    taskEl.className = 'bg-slate-700/50 p-3 rounded-lg border border-slate-600';
+                    taskEl.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-semibold text-white">${task.accountName}</p>
+                                <p class="text-slate-300 text-sm mt-1 whitespace-pre-wrap">${task.task}</p>
+                            </div>
+                            <button data-id="${task.id}" class="delete-task-btn text-red-400 hover:text-red-300 p-1 flex-shrink-0 ml-2" aria-label="Delete task for ${task.accountName}">
+                                <i data-lucide="x" class="h-4 w-4 pointer-events-none"></i>
+                            </button>
+                        </div>
+                    `;
+                    taskList.appendChild(taskEl);
+                });
+                taskList.querySelectorAll('.delete-task-btn').forEach(btn => {
+                    btn.onclick = async () => {
+                        await deleteDoc(getDocRef('reminders', btn.dataset.id));
+                        showNotification('Task removed.', 'success');
+                    }
+                });
+            } else {
+                 taskList.innerHTML = `<p class="text-slate-500 text-center p-4">No tasks yet.</p>`;
+            }
+            lucide.createIcons();
+        }
+        
+        function getDashboardHTML() {
+            const layout = state.dashboardLayout;
+            const visibleComponents = layout.order.filter(id => layout.visible.includes(id));
+
+            if (visibleComponents.length === 0) {
+                return `
+                    <div class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-white text-shadow-drop">Dashboard</h1>
+                        <button id="customize-dashboard-btn" class="bg-slate-700 text-slate-300 font-semibold py-2 px-4 rounded-lg hover:bg-slate-600 transition flex items-center gap-2">
+                            <i data-lucide="settings-2" class="h-5 w-5"></i>
+                            <span>Customize Dashboard</span>
+                        </button>
+                    </div>
+                    <p class="text-slate-400 text-center lg:col-span-2">No components selected for the dashboard. Click "Customize Dashboard" to add some!</p>
+                `;
+            }
+
+            let dashboardContentHTML = '';
+            let containerClasses = 'grid grid-cols-1 gap-8';
+
+            switch (layout.layoutType) {
+                case 'vertical':
+                    containerClasses += ' lg:grid-cols-1';
+                    dashboardContentHTML = visibleComponents.map(id => {
+                        const component = DASHBOARD_COMPONENTS[id];
+                        return `<section class="card rounded-xl shadow-lg p-6 flex flex-col">${component.getter(false)}</section>`;
+                    }).join('');
+                    break;
+
+                case 'feature':
+                    containerClasses += ' lg:grid-cols-2';
+                    dashboardContentHTML = visibleComponents.map((id, index) => {
+                        const component = DASHBOARD_COMPONENTS[id];
+                        const sectionClass = (index === 0 && visibleComponents.length > 1) ? 'lg:col-span-2' : '';
+                        return `<section class="card rounded-xl shadow-lg p-6 flex flex-col ${sectionClass}">${component.getter(false)}</section>`;
+                    }).join('');
+                    break;
+                
+                case 'feature-left':
+                    containerClasses += ' lg:grid-cols-3';
+                    const mainComponentLeft = DASHBOARD_COMPONENTS[visibleComponents[0]];
+                    const sidebarComponentsLeft = visibleComponents.slice(1);
+                    
+                    dashboardContentHTML = `
+                        <div class="lg:col-span-2">
+                            <section class="card rounded-xl shadow-lg p-6 flex flex-col h-full">${mainComponentLeft ? mainComponentLeft.getter(false) : ''}</section>
+                        </div>
+                        <div class="space-y-8 lg:col-span-1">
+                            ${sidebarComponentsLeft.map(id => {
+                                const component = DASHBOARD_COMPONENTS[id];
+                                return `<section class="card rounded-xl shadow-lg p-6 flex flex-col">${component.getter(false)}</section>`;
+                            }).join('')}
+                        </div>
+                    `;
+                    break;
+
+                case 'feature-right':
+                    containerClasses += ' lg:grid-cols-3';
+                    const mainComponentRight = DASHBOARD_COMPONENTS[visibleComponents[0]];
+                    const sidebarComponentsRight = visibleComponents.slice(1);
+
+                    dashboardContentHTML = `
+                        <div class="space-y-8 lg:col-span-1">
+                            ${sidebarComponentsRight.map(id => {
+                                const component = DASHBOARD_COMPONENTS[id];
+                                return `<section class="card rounded-xl shadow-lg p-6 flex flex-col">${component.getter(false)}</section>`;
+                            }).join('')}
+                        </div>
+                        <div class="lg:col-span-2">
+                             <section class="card rounded-xl shadow-lg p-6 flex flex-col h-full">${mainComponentRight ? mainComponentRight.getter(false) : ''}</section>
+                        </div>
+                    `;
+                    break;
+
+                /** NEW LAYOUT LOGIC **/
+                case 'feature-bottom':
+                    containerClasses += ' lg:grid-cols-2';
+                    const bottomComponent = DASHBOARD_COMPONENTS[visibleComponents[0]];
+                    const topComponents = visibleComponents.slice(1);
+
+                    dashboardContentHTML = `
+                        ${topComponents.map(id => {
+                            const component = DASHBOARD_COMPONENTS[id];
+                            return `<section class="card rounded-xl shadow-lg p-6 flex flex-col">${component.getter(false)}</section>`;
+                        }).join('')}
+                        ${bottomComponent ? `<section class="card rounded-xl shadow-lg p-6 flex flex-col lg:col-span-2">${bottomComponent.getter(false)}</section>` : ''}
+                    `;
+                    break;
+
+                case 'grid':
+                default:
+                    containerClasses += ' lg:grid-cols-2';
+                    dashboardContentHTML = visibleComponents.map(id => {
+                        const component = DASHBOARD_COMPONENTS[id];
+                        return `<section class="card rounded-xl shadow-lg p-6 flex flex-col">${component.getter(false)}</section>`;
+                    }).join('');
+                    break;
+            }
+
+            return `
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-3xl font-bold text-white text-shadow-drop">Dashboard</h1>
+                    <button id="customize-dashboard-btn" class="bg-slate-700 text-slate-300 font-semibold py-2 px-4 rounded-lg hover:bg-slate-600 transition flex items-center gap-2">
+                        <i data-lucide="settings-2" class="h-5 w-5"></i>
+                        <span>Customize Dashboard</span>
+                    </button>
+                </div>
+                <div id="dashboard-grid" class="${containerClasses}">
+                    ${dashboardContentHTML}
+                </div>
+            `;
+        }
+
+        function openDashboardSettingsModal() {
+            const bodyHTML = `
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="font-semibold text-white mb-3">Layout Style</h3>
+                        <div id="layout-picker" class="grid grid-cols-3 gap-4">
+                            <div class="layout-option ${state.dashboardLayout.layoutType === 'grid' ? 'selected' : ''}" data-layout-type="grid">
+                                <div class="h-20 grid grid-cols-2 gap-2 p-2">${[...Array(4)].map(() => `<div class="layout-block"></div>`).join('')}</div>
+                                <p class="text-center text-sm">Grid</p>
+                            </div>
+                            <div class="layout-option ${state.dashboardLayout.layoutType === 'vertical' ? 'selected' : ''}" data-layout-type="vertical">
+                                <div class="h-20 grid grid-cols-1 gap-2 p-2">${[...Array(3)].map(() => `<div class="layout-block h-4"></div>`).join('')}</div>
+                                <p class="text-center text-sm">Vertical</p>
+                            </div>
+                            <div class="layout-option ${state.dashboardLayout.layoutType === 'feature' ? 'selected' : ''}" data-layout-type="feature">
+                                <div class="h-20 grid grid-cols-2 gap-2 p-2"><div class="layout-block col-span-2 h-8"></div><div class="layout-block"></div><div class="layout-block"></div></div>
+                                <p class="text-center text-sm">Feature Top</p>
+                            </div>
+                             <div class="layout-option ${state.dashboardLayout.layoutType === 'feature-left' ? 'selected' : ''}" data-layout-type="feature-left">
+                                <div class="h-20 grid grid-cols-3 gap-2 p-2"><div class="layout-block col-span-2 row-span-2"></div><div class="layout-block"></div><div class="layout-block"></div></div>
+                                <p class="text-center text-sm">Feature Left</p>
+                            </div>
+                             <div class="layout-option ${state.dashboardLayout.layoutType === 'feature-right' ? 'selected' : ''}" data-layout-type="feature-right">
+                                <div class="h-20 grid grid-cols-3 gap-2 p-2"><div class="layout-block"></div><div class="layout-block col-span-2 row-span-2"></div><div class="layout-block"></div></div>
+                                <p class="text-center text-sm">Feature Right</p>
+                            </div>
+                             <div class="layout-option ${state.dashboardLayout.layoutType === 'feature-bottom' ? 'selected' : ''}" data-layout-type="feature-bottom">
+                                <div class="h-20 grid grid-cols-2 gap-2 p-2"><div class="layout-block"></div><div class="layout-block"></div><div class="layout-block col-span-2 h-8"></div></div>
+                                <p class="text-center text-sm">Feature Bottom</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-white mb-3">Visible Components</h3>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                            ${Object.keys(DASHBOARD_COMPONENTS).map(id => `
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" data-component-id="${id}" class="dashboard-visibility-toggle" ${state.dashboardLayout.visible.includes(id) ? 'checked' : ''}>
+                                    <span>${DASHBOARD_COMPONENTS[id].title}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-white mb-3">Component Order</h3>
+                        <p class="text-sm text-slate-400 mb-3">Drag and drop to reorder the components on your dashboard.</p>
+                        <ul id="dashboard-order-list" class="space-y-2">
+                           </ul>
+                    </div>
+                </div>
+            `;
+            const actionsHTML = `<button id="save-dashboard-settings" class="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-500">Save & Close</button>`;
+            const modalId = openModal('Customize Dashboard', bodyHTML, actionsHTML);
+
+            renderDraggableList();
+
+            document.querySelectorAll('.dashboard-visibility-toggle').forEach(checkbox => {
+                checkbox.onchange = () => {
+                    renderDraggableList();
+                };
+            });
+            
+            document.getElementById('layout-picker').addEventListener('click', (e) => {
+                const target = e.target.closest('.layout-option');
+                if (target) {
+                    document.querySelectorAll('.layout-option').forEach(opt => opt.classList.remove('selected'));
+                    target.classList.add('selected');
+                }
+            });
+
+            getEl('save-dashboard-settings').onclick = () => {
+                saveDashboardLayout();
+                closeModal(modalId);
+            };
+        }
+
+        function renderDraggableList() {
+            const orderList = getEl('dashboard-order-list');
+            const visibleToggles = document.querySelectorAll('.dashboard-visibility-toggle');
+            const currentVisibleIds = Array.from(visibleToggles).filter(cb => cb.checked).map(cb => cb.dataset.componentId);
+
+            const existingOrderedAndVisible = state.dashboardLayout.order.filter(id => currentVisibleIds.includes(id));
+            const newItems = currentVisibleIds.filter(id => !state.dashboardLayout.order.includes(id));
+            const finalOrderedVisible = [...existingOrderedAndVisible, ...newItems];
+            
+            orderList.innerHTML = finalOrderedVisible.map(id => `
+                <li data-component-id="${id}" draggable="true" class="flex items-center gap-3 p-3 bg-slate-800 rounded-lg cursor-grab border border-slate-700">
+                    <i data-lucide="grip-vertical" class="h-5 w-5 text-slate-500"></i>
+                    <span class="font-medium text-white">${DASHBOARD_COMPONENTS[id].title}</span>
+                </li>
+            `).join('');
+            lucide.createIcons();
+            addDragAndDropListeners(orderList, saveDashboardLayout);
+        }
+
+        function addDragAndDropListeners(list, onDropCallback) {
+            let draggedItem = null;
+
+            list.querySelectorAll('[draggable="true"]').forEach(item => {
+                item.addEventListener('dragstart', () => {
+                    draggedItem = item;
+                    setTimeout(() => item.classList.add('dragging'), 0);
+                });
+
+                item.addEventListener('dragend', () => {
+                    setTimeout(() => {
+                        if (draggedItem) {
+                           draggedItem.classList.remove('dragging');
+                        }
+                        draggedItem = null;
+                        if(onDropCallback) onDropCallback();
+                    }, 0);
+                });
+            });
+
+            list.addEventListener('dragover', e => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(list, e.clientY);
+                const currentDragged = document.querySelector('.dragging');
+                if(!currentDragged) return;
+                
+                if (afterElement == null) {
+                    list.appendChild(currentDragged);
+                } else {
+                    list.insertBefore(currentDragged, afterElement);
+                }
+            });
+        }
+        
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('[draggable="true"]:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        async function saveDashboardLayout() {
+            const visibleToggles = document.querySelectorAll('.dashboard-visibility-toggle');
+            const orderList = getEl('dashboard-order-list');
+            const selectedLayout = document.querySelector('.layout-option.selected');
+            
+            const newVisible = Array.from(visibleToggles)
+                .filter(cb => cb.checked)
+                .map(cb => cb.dataset.componentId);
+
+            const newOrder = orderList ? Array.from(orderList.querySelectorAll('li')).map(item => item.dataset.componentId) : state.dashboardLayout.order;
+
+            state.dashboardLayout = {
+                visible: newVisible,
+                order: newOrder,
+                layoutType: selectedLayout ? selectedLayout.dataset.layoutType : 'grid'
+            };
+            
+            const settingsRef = getDocRef('settings', 'user_profile');
+            if (settingsRef) {
+                await setDoc(settingsRef, { dashboardLayout: state.dashboardLayout }, { merge: true });
+                showNotification('Dashboard layout saved!', 'success');
+            }
+            renderMainContent(); // Re-render the dashboard with the new layout
+        }
+        
+        function bindViewSpecificElements() {
+            const view = state.currentView;
+            
+            if(state.timeIntervalId) {
+                clearInterval(state.timeIntervalId);
+                state.timeIntervalId = null;
+            }
+
+            if (view === 'dashboard') {
+                getEl('customize-dashboard-btn').onclick = openDashboardSettingsModal;
+            }
+            if (view === 'dashboard' || view === 'prospectingEngine') {
+                if(getEl('find-prospects-btn')) getEl('find-prospects-btn').onclick = findProspects;
+                if(getEl('get-ideas-btn')) getEl('get-ideas-btn').onclick = handleGetIdeas;
+                if(getEl('add-industry-btn')) getEl('add-industry-btn').onclick = handleAddIndustry;
+                if(getEl('clear-prospects-btn')) getEl('clear-prospects-btn').onclick = handleClearProspects;
+                if(getEl('prospect-list')) getEl('prospect-list').onclick = handleProspectClick;
+                if(getEl('manage-industries-list')) renderIndustryList();
+            }
+            if (view === 'dashboard' || view === 'followUps') {
+                const container = getEl('bulk-followup-entries');
+                if(container && container.children.length === 0) addFollowUpRow(); // Add first row
+                if(getEl('add-followup-row-btn')) getEl('add-followup-row-btn').onclick = addFollowUpRow;
+                if(getEl('generate-all-followups-btn')) getEl('generate-all-followups-btn').onclick = handleGenerateAllFollowUps;
+                if(container) container.onclick = (e) => {
+                    if (e.target.closest('.remove-followup-row-btn')) {
+                        e.target.closest('.followup-row').remove();
+                    }
+                };
+            }
+            if (view === 'dashboard' || view === 'newsIntelligence') {
+                const refreshBtn = getEl('refresh-news-btn');
+                if(refreshBtn) {
+                    refreshBtn.onclick = fetchNews;
+                    fetchNews();
+                }
+            }
+             if (view === 'dailyPlanner') {
+                const scheduleContainer = getEl('daily-schedule-container');
+                if(scheduleContainer) scheduleContainer.innerHTML = getDailyScheduleHTML();
+                updateCurrentTimeIndicator();
+                state.timeIntervalId = setInterval(updateCurrentTimeIndicator, 60000); // Update every minute
+                renderDailyProspects();
+                getEl('reset-daily-prospects-btn').onclick = handleResetDailyProspects;
+                getEl('add-daily-prospect-manual-btn').onclick = async () => {
+                    const company = getEl('dp-company').value.trim();
+                    const name = getEl('dp-name').value.trim();
+                    if (!company || !name) {
+                        showNotification('Company and Client Name are required.', 'warning');
+                        return;
+                    }
+                    const newProspect = {
+                        businessName: company,
+                        decisionMaker: {
+                            name: name,
+                            email: getEl('dp-email').value.trim(),
+                            phone: getEl('dp-phone').value.trim(),
+                        },
+                        notes: getEl('dp-notes').value.trim()
+                    };
+                    await handleAddProspectToDailyPlanner(newProspect);
+                    // Clear fields
+                    getEl('dp-company').value = '';
+                    getEl('dp-name').value = '';
+                    getEl('dp-email').value = '';
+                    getEl('dp-phone').value = '';
+                    getEl('dp-notes').value = '';
+                };
+            }
+             if (view === 'proposalTracker') {
+                renderProposalTracker();
+                getEl('add-proposal-btn').onclick = handleAddProposal;
+            }
+            if (view === 'fieldLog') {
+                renderFieldLog();
+                getEl('add-field-log-btn').onclick = handleAddFieldLogEntry;
+            }
+            if (view === 'dashboard' || view === 'taskList') {
+                if(getEl('task-list')) renderTasks();
+                if(getEl('add-task-btn')) getEl('add-task-btn').onclick = async () => {
+                    const accountNameInput = getEl('task-account-name');
+                    const taskDescInput = getEl('task-description');
+                    const accountName = accountNameInput.value.trim();
+                    const task = taskDescInput.value.trim();
+                    
+                    if (accountName && task) {
+                        await addDoc(getCollRef('reminders'), { 
+                            accountName: accountName, 
+                            task: task, 
+                            added: new Date() 
+                        });
+                        accountNameInput.value = '';
+                        taskDescInput.value = '';
+                        showNotification('Task added!', 'success');
+                    } else {
+                        showNotification('Please fill out both the account name and task details.', 'warning');
+                    }
+                };
+            }
+            if(getEl('prospect-list')) renderProspects();
+        }
+
+        function renderMainContent() {
+            const view = state.currentView;
+            let content = '';
+
+            switch(view) {
+                case 'dashboard':
+                    content = getDashboardHTML();
+                    break;
+                case 'prospectingEngine':
+                     content = `
+                        <section class="grid grid-cols-1 gap-8" aria-label="Prospecting Engine Controls and List">
+                            <div class="card rounded-xl shadow-lg p-6 lg:p-8 flex flex-col">
+                                ${getProspectingEngineHTML(true)}
+                            </div>
+                        </section>
+                    `;
+                    break;
+                case 'followUps':
+                    content = `
+                        <section class="card rounded-xl shadow-lg p-6 lg:p-8">
+                           ${getFollowUpsHTML()}
+                        </section>`;
+                    break;
+                case 'newsIntelligence':
+                    content = getNewsIntelligenceHTML(true);
+                    break;
+                case 'dailyPlanner':
+                    content = getDailyPlannerHTML();
+                    break;
+                case 'proposalTracker':
+                    content = getProposalTrackerHTML();
+                    break;
+                case 'fieldLog':
+                    content = getFieldLogHTML();
+                    break;
+                case 'taskList':
+                    content = `
+                        <h1 class="text-3xl font-bold text-white mb-8 text-center text-shadow-drop">Task List / Follow-up Log</h1>
+                        <section aria-label="Task List and Reminders">
+                            ${getTaskListHTML(true)}
+                        </section>
+                        `;
+                    break;
+                default:
+                    content = `<h1 class="text-3xl font-bold text-white text-center text-shadow-drop">Not Found</h1>`;
+            }
+            DOMElements.mainContent.innerHTML = content;
+            renderSidebarNav();
+            bindViewSpecificElements();
+            lucide.createIcons();
+        }
+
+        function renderSidebarNav() {
+            DOMElements.sidebarNav.innerHTML = state.navItems.map(item => {
+                if (item.isExternal) {
+                    return `
+                        <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="nav-item flex items-center p-3 rounded-lg text-slate-300 hover:bg-slate-700 transition-colors duration-200">
+                            <i data-lucide="${item.icon}" class="h-6 w-6"></i>
+                            <span class="nav-text ml-4 text-sm font-semibold whitespace-nowrap">${item.label}</span>
+                        </a>
+                    `;
+                } else {
+                    return `
+                        <a href="#" data-view="${item.id}" draggable="true" class="nav-item flex items-center p-3 rounded-lg text-slate-300 hover:bg-slate-700 transition-colors duration-200 ${state.currentView === item.id ? 'bg-sky-500/20 text-sky-400' : ''}">
+                            <i data-lucide="${item.icon}" class="h-6 w-6"></i>
+                            <span class="nav-text ml-4 text-sm font-semibold whitespace-nowrap">${item.label}</span>
+                        </a>
+                    `;
+                }
+            }).join('');
+            lucide.createIcons();
+            addDragAndDropListeners(DOMElements.sidebarNav, saveNavOrder);
+        }
+
+        async function saveNavOrder() {
+            const newOrderIds = [...DOMElements.sidebarNav.querySelectorAll('.nav-item[data-view]')].map(item => item.dataset.view);
+            
+            // Reorder the state.navItems array based on the new ID order
+            const newNavItems = newOrderIds.map(id => state.navItems.find(item => item.id === id));
+            
+            // Add back any items that might not be in the draggable list (like external links)
+            state.navItems.forEach(item => {
+                if (!newNavItems.includes(item)) {
+                    newNavItems.push(item);
+                }
+            });
+
+            state.navItems = newNavItems;
+
+            const settingsRef = getDocRef('settings', 'user_profile');
+            if (settingsRef) {
+                await setDoc(settingsRef, { navOrder: newOrderIds }, { merge: true });
+            }
+        }
+
+        function getDocRef(coll, id) { return state.userId ? doc(state.db, 'artifacts', state.appId, 'users', state.userId, coll, id) : null; }
+        function getCollRef(coll) { return state.userId ? collection(state.db, 'artifacts', state.appId, 'users', state.userId, coll) : null; }
+
+        function setupFirestoreListeners() {
+            if (!state.userId) return;
+            onSnapshot(getDocRef('settings', 'user_profile'), docSnap => {
+                if(docSnap.exists()){
+                    const settings = docSnap.data();
+                    if(settings.background_image) document.body.style.backgroundImage = `url(${settings.background_image})`;
+                    if(settings.logo_image) getEl('logo-image').src = settings.logo_image;
+                    if(settings.dashboardLayout) {
+                        state.dashboardLayout = settings.dashboardLayout;
+                    }
+                    if (settings.navOrder) {
+                        // Reorder state.navItems based on saved order
+                        const defaultItems = [...DEFAULT_NAV_ITEMS];
+                        const orderedItems = settings.navOrder.map(id => defaultItems.find(item => item.id === id)).filter(Boolean);
+                        const remainingItems = defaultItems.filter(item => !settings.navOrder.includes(item.id));
+                        state.navItems = [...orderedItems, ...remainingItems];
+                    }
+                }
+                if(state.isAuthReady) { // Only render if app is ready
+                   renderMainContent();
+                }
+            });
+             onSnapshot(query(getCollRef('reminders')), snapshot => {
+                state.reminders = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                if (getEl('task-list')) renderTasks();
+            });
+            onSnapshot(getCollRef('prospects'), snapshot => {
+                state.prospects = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                state.selectedProspects = state.selectedProspects.filter(p => state.prospects.some(sp => sp.id === p.id));
+                if(getEl('prospect-list')) renderProspects();
+            });
+            onSnapshot(query(getCollRef('dailyPlanner'), orderBy('order')), snapshot => {
+                state.dailyProspects = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                if (state.currentView === 'dailyPlanner') {
+                    renderDailyProspects();
+                }
+            });
+            onSnapshot(query(getCollRef('proposals'), orderBy('updatedAt', 'desc')), snapshot => {
+                state.proposals = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                if (state.currentView === 'proposalTracker') {
+                    renderProposalTracker();
+                }
+            });
+             onSnapshot(query(getCollRef('fieldLog'), orderBy('createdAt', 'desc')), snapshot => {
+                state.fieldLog = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                if (state.currentView === 'fieldLog') {
+                    renderFieldLog();
+                }
+            });
+             const industriesDocRef = getDocRef('settings', 'industries');
+             onSnapshot(industriesDocRef, (docSnap) => {
+                if (docSnap.exists() && docSnap.data().list) {
+                    state.industries = docSnap.data().list;
+                } else {
+                    state.industries = DEFAULT_INDUSTRIES_LIST;
+                    setDoc(industriesDocRef, { list: state.industries });
+                }
+                if(getEl('manage-industries-list')) {
+                    renderIndustryList();
+                }
+             });
+        }
+        
+        function updateSidebarView() {
+            const isOpen = state.isSidebarOpen;
+            const toggleButton = DOMElements.sidebarToggle;
+            
+            document.body.className = isOpen ? 'sidebar-open text-slate-300' : 'sidebar-closed text-slate-300';
+            DOMElements.sidebar.style.width = isOpen ? 'var(--sidebar-width-open)' : 'var(--sidebar-width-closed)';
+            
+            toggleButton.setAttribute('aria-expanded', isOpen);
+            const toggleIcon = toggleButton.querySelector('i');
+            if (toggleIcon) {
+                toggleIcon.dataset.lucide = isOpen ? 'chevrons-left' : 'chevrons-right';
+            }
+            const toggleTextSpan = toggleButton.querySelector('.nav-text');
+            if(toggleTextSpan) {
+                toggleTextSpan.textContent = isOpen ? 'Collapse' : '';
+            }
+
+            document.querySelectorAll('.nav-text').forEach(el => {
+                 if (!el.parentElement.matches('#sidebar-toggle')) {
+                       el.classList.toggle('hidden', !isOpen);
+                       el.parentElement.classList.toggle('justify-center', !isOpen);
+                 }
+            });
+
+            const backgroundButtonText = DOMElements.backgroundUploadBtn.querySelector('.nav-text');
+             if (backgroundButtonText) {
+                   backgroundButtonText.classList.toggle('hidden', !isOpen);
+             }
+             DOMElements.backgroundUploadBtn.classList.toggle('justify-center', !isOpen);
+             
+             DOMElements.logoWrapper.classList.toggle('hidden', !isOpen);
+            
+            lucide.createIcons();
+        }
+
+        function initializeFirebase() {
+            try {
+                // Safely get and parse Firebase config
+                let firebaseConfig;
+                if (typeof __firebase_config === 'string' && __firebase_config.trim() !== '') {
+                    try {
+                        firebaseConfig = JSON.parse(__firebase_config);
+                    } catch (e) {
+                        console.error("Firebase config is a string but not valid JSON:", __firebase_config, e);
+                        throw new Error("Invalid Firebase configuration format.");
+                    }
+                } else if (typeof __firebase_config === 'object' && __firebase_config !== null) {
+                    firebaseConfig = __firebase_config;
+                } else {
+                    throw new Error("Firebase config is not available or in a wrong format.");
+                }
+
+                if (!firebaseConfig.apiKey) {
+                    throw new Error("Firebase config is missing the 'apiKey'.");
+                }
+
+                // Safely get App ID
+                state.appId = (typeof __app_id === 'string' && __app_id.trim() !== '') ? __app_id : 'default-prospecting-hub';
+
+                const app = initializeApp(firebaseConfig);
+                state.auth = getAuth(app);
+                state.db = getFirestore(app);
+
+                onAuthStateChanged(state.auth, async (user) => {
+                    if (user) {
+                        state.userId = user.uid;
+                        DOMElements.authLoader.style.display = 'none';
+                        DOMElements.appContainer.style.display = 'block';
+                        bindAppEventListeners();
+                        setupFirestoreListeners();
+                        updateSidebarView();
+                        state.isAuthReady = true;
+                    } else {
+                        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                        try {
+                            if (token) {
+                                await signInWithCustomToken(state.auth, token);
+                            } else {
+                                await signInAnonymously(state.auth);
+                            }
+                        } catch (error) {
+                            if (error.code === 'auth/invalid-claims' || error.code === 'auth/invalid-custom-token' || error.code === 'auth/custom-token-mismatch') {
+                                console.warn("Custom token failed, falling back to anonymous sign-in.", error);
+                                await signInAnonymously(state.auth);
+                            } else {
+                                console.error("Firebase sign-in error:", error);
+                                DOMElements.authLoader.innerHTML = `<p class="text-red-400">Authentication Failed: ${error.message}.</p>`;
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase Init Error:", error);
+                DOMElements.authLoader.innerHTML = `<p class="text-red-400">App failed to load. Check console for details.</p>`;
+            }
+        }
+        
+        function bindAppEventListeners() {
+            DOMElements.sidebarToggle.onclick = () => {
+                state.isSidebarOpen = !state.isSidebarOpen;
+                updateSidebarView();
+            };
+            DOMElements.sidebarNav.onclick = (e) => {
+                const navItem = e.target.closest('.nav-item');
+                if (navItem && navItem.dataset.view) {
+                    e.preventDefault();
+                    state.currentView = navItem.dataset.view;
+                    renderMainContent();
+                }
+            };
+            DOMElements.backgroundUploadBtn.onclick = () => DOMElements.backgroundUploadInput.click();
+            DOMElements.backgroundUploadInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file?.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        document.body.style.backgroundImage = `url(${event.target.result})`;
+                        const settingsRef = getDocRef('settings', 'user_profile');
+                        if (settingsRef) await setDoc(settingsRef, { background_image: event.target.result }, { merge: true });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+            DOMElements.logoWrapper.onclick = () => DOMElements.logoUploadInput.click();
+            DOMElements.logoUploadInput.onchange = (e) => {
+                 const file = e.target.files[0];
+                if (file?.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        const logoUrl = event.target.result;
+                        getEl('logo-image').src = logoUrl;
+                        const settingsRef = getDocRef('settings', 'user_profile');
+                        if (settingsRef) await setDoc(settingsRef, { logo_image: logoUrl }, { merge: true });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+        }
+        
+        function main() {
+            DOMElements = {
+                 authLoader: getEl('auth-loader'), appContainer: getEl('app-container'),
+                 sidebar: getEl('sidebar'), sidebarNav: getEl('sidebar-nav'),
+                 sidebarToggle: getEl('sidebar-toggle'), mainContent: getEl('main-content'),
+                 backgroundUploadBtn: getEl('background-upload-btn'), backgroundUploadInput: getEl('background-upload-input'),
+                 logoContainer: getEl('logo-container'),
+                 logoWrapper: getEl('logo-wrapper'),
+                 logoImage: getEl('logo-image'),
+                 logoUploadInput: getEl('logo-upload-input'),
+                 notificationContainer: getEl('notification-container'), modalContainer: getEl('modal-container'),
+            };
+            initializeFirebase();
+        }
+
+        main();
+
+    </script>
+</body>
+</html>
