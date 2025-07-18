@@ -223,13 +223,11 @@
     <!-- Containers for dynamic elements like modals and notifications -->
     <div id="modal-container"></div>
     <div id="notification-container" aria-live="polite" aria-atomic="true"></div>
-
+    
     <script type="module">
         // --- Firebase & App Configuration ---
-        // These will be populated by the environment. Do not edit them directly.
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-prospecting-hub';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // These global variables will be populated by the execution environment.
+        // If they are not present, the app will fall back to a hardcoded configuration.
 
         // --- Firebase Module Imports ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -252,7 +250,7 @@
 
         // --- Application State ---
         let state = {
-            db: null, auth: null, userId: null, isAuthReady: false,
+            db: null, auth: null, userId: null, isAuthReady: false, appId: null,
             isLoading: false, prospects: [], industries: [],
             lastSearchedIndustries: localStorage.getItem('lastSearchedIndustries') || "",
             selectedProspects: [], reminders: [], newsItems: [], dailyProspects: [], proposals: [], fieldLog: [],
@@ -2630,8 +2628,8 @@
             }
         }
 
-        function getDocRef(coll, id) { return state.userId ? doc(state.db, 'artifacts', appId, 'users', state.userId, coll, id) : null; }
-        function getCollRef(coll) { return state.userId ? collection(state.db, 'artifacts', appId, 'users', state.userId, coll) : null; }
+        function getDocRef(coll, id) { return state.userId ? doc(state.db, 'artifacts', state.appId, 'users', state.userId, coll, id) : null; }
+        function getCollRef(coll) { return state.userId ? collection(state.db, 'artifacts', state.appId, 'users', state.userId, coll) : null; }
 
         function setupFirestoreListeners() {
             if (!state.userId) return;
@@ -2745,9 +2743,29 @@
 
         function initializeFirebase() {
             try {
-                // Safely get and parse Firebase config
+                let firebaseConfig;
+                
+                // FIX: Check for environment-provided config first, then fall back to hardcoded values.
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                    state.appId = (typeof __app_id !== 'undefined' && __app_id) ? __app_id : 'default-prospecting-hub';
+                } else {
+                    // Fallback to hardcoded config if environment variables are not present
+                    console.log("Using hardcoded Firebase config as environment variables were not found.");
+                    firebaseConfig = {
+                        apiKey: "AIzaSyD8jTfrLMec-UNf-dAndi0mOx0Yh-KeTjw",
+                        authDomain: "prospector-2-b9588.firebaseapp.com",
+                        projectId: "prospector-2-b9588",
+                        storageBucket: "prospector-2-b9588.appspot.com",
+                        messagingSenderId: "229973385000",
+                        appId: "1:229973385000:web:33697fb0c5b472b7197a1d",
+                        measurementId: "G-BV5C58NSC5"
+                    };
+                    state.appId = 'prospector-2-b9588';
+                }
+
                 if (!firebaseConfig || !firebaseConfig.apiKey) {
-                    throw new Error("Firebase config is not available or is invalid.");
+                    throw new Error("Firebase configuration is missing or invalid.");
                 }
 
                 const app = initializeApp(firebaseConfig);
@@ -2764,9 +2782,10 @@
                         updateSidebarView();
                         state.isAuthReady = true;
                     } else {
+                        const token = (typeof __initial_auth_token !== 'undefined') ? __initial_auth_token : null;
                         try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(state.auth, initialAuthToken);
+                            if (token) {
+                                await signInWithCustomToken(state.auth, token);
                             } else {
                                 await signInAnonymously(state.auth);
                             }
